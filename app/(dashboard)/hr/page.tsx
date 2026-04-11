@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Mail, Phone } from 'lucide-react';
+import { Plus, Mail, Phone, Send } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { ROLE_LABELS, formatDate } from '@/lib/utils';
 
@@ -23,9 +25,48 @@ const MODULE_PERMISSIONS = [
   { key: 'access_operations', label: 'Operacje / Dokumenty' },
 ];
 
+const ROLE_OPTIONS = [
+  { value: 'employee', label: 'Pracownik' },
+  { value: 'partner', label: 'Partner' },
+  { value: 'admin', label: 'Admin' },
+];
+
 export default function HRPage() {
   const { employees, loading } = useEmployees();
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'employee', position: '' });
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [inviteError, setInviteError] = useState('');
+
+  async function handleInvite() {
+    setInviteStatus('loading');
+    setInviteError('');
+    try {
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inviteForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInviteError(data.error ?? 'Wystąpił błąd');
+        setInviteStatus('error');
+        return;
+      }
+      setInviteStatus('success');
+    } catch {
+      setInviteError('Błąd połączenia z serwerem');
+      setInviteStatus('error');
+    }
+  }
+
+  function closeInvite() {
+    setInviteOpen(false);
+    setInviteForm({ name: '', email: '', role: 'employee', position: '' });
+    setInviteStatus('idle');
+    setInviteError('');
+  }
 
   if (loading) {
     return (
@@ -39,7 +80,7 @@ export default function HRPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-text-primary">Pracownicy</h1>
-        <Button variant="primary" size="sm">
+        <Button variant="primary" size="sm" onClick={() => setInviteOpen(true)}>
           <Plus size={14} />
           Zaproś pracownika
         </Button>
@@ -86,6 +127,67 @@ export default function HRPage() {
           </div>
         ))}
       </div>
+
+      {/* Invite modal */}
+      <Modal open={inviteOpen} onClose={closeInvite} title="Zaproś pracownika">
+        {inviteStatus === 'success' ? (
+          <div className="p-8 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+              <Send size={20} className="text-emerald-600" />
+            </div>
+            <p className="text-sm font-semibold text-text-primary">Zaproszenie wysłane!</p>
+            <p className="text-xs text-text-muted">
+              Link aktywacyjny został wysłany na <span className="font-medium text-text-primary">{inviteForm.email}</span>.<br />
+              Pracownik ustawi własne hasło po kliknięciu w link.
+            </p>
+            <Button variant="primary" size="sm" onClick={closeInvite}>Gotowe</Button>
+          </div>
+        ) : (
+          <>
+            <div className="p-5 space-y-4">
+              <Input
+                label="Imię i nazwisko"
+                placeholder="Jan Kowalski"
+                value={inviteForm.name}
+                onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))}
+              />
+              <Input
+                label="Email"
+                placeholder="jan@firma.pl"
+                value={inviteForm.email}
+                onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
+              />
+              <Input
+                label="Stanowisko (opcjonalnie)"
+                placeholder="np. Specjalista ds. sprzedaży"
+                value={inviteForm.position}
+                onChange={e => setInviteForm(f => ({ ...f, position: e.target.value }))}
+              />
+              <Select
+                label="Rola"
+                value={inviteForm.role}
+                options={ROLE_OPTIONS}
+                onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
+              />
+              {inviteStatus === 'error' && (
+                <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {inviteError}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-border bg-bg-subtle">
+              <Button variant="ghost" onClick={closeInvite}>Anuluj</Button>
+              <Button
+                variant="primary"
+                onClick={handleInvite}
+                disabled={!inviteForm.name || !inviteForm.email || inviteStatus === 'loading'}
+              >
+                {inviteStatus === 'loading' ? 'Wysyłanie...' : 'Wyślij zaproszenie'}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       {/* Edit permissions modal */}
       {editingEmployee && (() => {
