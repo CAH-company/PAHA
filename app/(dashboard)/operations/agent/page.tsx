@@ -179,9 +179,9 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
               {/* Animacja pisania — trzy kropki gdy agent jeszcze nie zaczął pisać */}
               {showTyping && (
                 <span className="flex items-center gap-1 py-1">
-                  <span className="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
                 </span>
               )}
               {/* Status narzędzia */}
