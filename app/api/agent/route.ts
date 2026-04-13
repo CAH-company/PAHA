@@ -96,13 +96,13 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return new Response('Unauthorized', { status: 401 });
 
-    const { data: setting } = await supabase
+    const { data: settings } = await supabase
       .from('app_settings')
-      .select('value')
-      .eq('key', 'anthropic_api_key')
-      .maybeSingle();
+      .select('key, value')
+      .in('key', ['anthropic_api_key', 'anthropic_model']);
 
-    const apiKey = setting?.value ?? process.env.ANTHROPIC_API_KEY;
+    const apiKey = settings?.find(s => s.key === 'anthropic_api_key')?.value ?? process.env.ANTHROPIC_API_KEY;
+    const model = settings?.find(s => s.key === 'anthropic_model')?.value ?? 'claude-sonnet-4-6';
     if (!apiKey) {
       return new Response(
         JSON.stringify({ error: 'no_api_key', message: 'Brak klucza API Anthropic.' }),
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
           // Agentic loop — max 5 rund (tool use → result → odpowiedź)
           for (let round = 0; round < 5; round++) {
             const response = await anthropic.messages.create({
-              model: 'claude-sonnet-4-6',
+              model,
               max_tokens: 4096,
               system: systemPrompt,
               tools: TOOLS,

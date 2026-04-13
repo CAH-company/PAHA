@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { Eye, EyeOff, Check, Zap, Mail, Bell, Link2, Shield, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff, Check, Zap, Mail, Bell, Link2, Shield, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 
 const SIDEBAR_ITEMS = [
   { id: 'general', label: 'Ogólne', icon: Settings },
@@ -34,6 +35,97 @@ function SecretInput({ label, description }: { label: string; description?: stri
         <Button variant="primary" size="md">Zapisz</Button>
       </div>
     </div>
+  );
+}
+
+function AISection() {
+  const [apiKey, setApiKey] = useState('');
+  const [model, setModel] = useState('claude-sonnet-4-6');
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['anthropic_api_key', 'anthropic_model'])
+      .then(({ data }) => {
+        if (!data) return;
+        const key = data.find(r => r.key === 'anthropic_api_key')?.value ?? '';
+        const mdl = data.find(r => r.key === 'anthropic_model')?.value ?? 'claude-sonnet-4-6';
+        setApiKey(key);
+        setModel(mdl);
+        setLoading(false);
+      });
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    const supabase = createClient();
+    await supabase.from('app_settings').upsert([
+      { key: 'anthropic_api_key', value: apiKey, is_secret: true, label: 'Anthropic API Key' },
+      { key: 'anthropic_model', value: model, is_secret: false, label: 'Model Claude' },
+    ], { onConflict: 'key' });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  if (loading) return (
+    <div className="flex items-center gap-2 text-text-muted text-sm py-8">
+      <Loader2 size={14} className="animate-spin" /> Ładowanie...
+    </div>
+  );
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-text-primary">AI Agent — Anthropic</h2>
+      <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
+        Klucz API jest przechowywany w bazie danych projektu (Supabase). Nie jest widoczny publicznie.
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-text-secondary">Anthropic API Key</label>
+        <p className="text-xs text-text-muted">Klucz z console.anthropic.com</p>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type={show ? 'text' : 'password'}
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder="sk-ant-..."
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
+            />
+            <button onClick={() => setShow(!show)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
+              {show ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+        </div>
+      </div>
+      <Select
+        label="Model"
+        value={model}
+        options={[
+          { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (zalecany)' },
+          { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (najlepszy, wolniejszy)' },
+          { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (najszybszy, tańszy)' },
+        ]}
+        onChange={e => setModel(e.target.value)}
+      />
+      <div className="flex items-center gap-3">
+        <Button variant="primary" onClick={save} disabled={saving || !apiKey}>
+          {saving ? <><Loader2 size={13} className="animate-spin" /> Zapisywanie...</> : 'Zapisz'}
+        </Button>
+        {saved && (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+            <Check size={13} /> Zapisano
+          </span>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -97,21 +189,7 @@ export default function SettingsPage() {
             </>
           )}
 
-          {section === 'ai' && (
-            <>
-              <h2 className="text-base font-semibold text-text-primary">AI Agent — Anthropic</h2>
-              <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
-                Agent marketingowy używa Claude API bezpośrednio. Klucz jest przechowywany zaszyfrowany.
-              </div>
-              <SecretInput label="Anthropic API Key" description="Klucz z console.anthropic.com" />
-              <Select label="Model" defaultValue="claude-opus-4-6"
-                options={[
-                  { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (najlepszy)' },
-                  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (szybszy)' },
-                  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (najszybszy)' },
-                ]} />
-            </>
-          )}
+          {section === 'ai' && <AISection />}
 
           {section === 'notifications' && (
             <>
