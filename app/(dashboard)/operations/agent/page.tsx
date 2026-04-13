@@ -14,6 +14,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   createdAt: Date;
+  tool?: string;
 }
 
 // ─── MARKDOWN-LITE RENDERER ───────────────────────────────────────────────────
@@ -138,6 +139,7 @@ function inlineFormat(text: string): React.ReactNode {
 
 // ─── MESSAGE BUBBLE ───────────────────────────────────────────────────────────
 function MessageBubble({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
+  const showToolStatus = isStreaming && message.tool && !message.content;
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
@@ -174,7 +176,13 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
           ) : (
             <div className="prose-sm">
               {renderContent(message.content)}
-              {isStreaming && (
+              {showToolStatus && (
+                <span className="flex items-center gap-1.5 text-xs text-text-muted italic">
+                  <Loader2 size={11} className="animate-spin" />
+                  {message.tool}
+                </span>
+              )}
+              {isStreaming && !showToolStatus && (
                 <span className="inline-block w-1.5 h-4 bg-accent/70 rounded-sm animate-pulse ml-0.5 align-middle" />
               )}
             </div>
@@ -298,12 +306,25 @@ export default function AgentPage() {
           const payload = line.slice(6);
           if (payload === '[DONE]') break;
           try {
-            const { text } = JSON.parse(payload);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, content: m.content + text } : m
-              )
-            );
+            const parsed = JSON.parse(payload);
+            if (parsed.text) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content: m.content + parsed.text, tool: undefined } : m
+                )
+              );
+            } else if (parsed.tool) {
+              const toolLabels: Record<string, string> = {
+                search_crm: 'Przeszukuję CRM...',
+                get_emails: 'Sprawdzam emaile...',
+                search_drive: 'Przeszukuję Google Drive...',
+              };
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, tool: toolLabels[parsed.tool] ?? `Używam: ${parsed.tool}` } : m
+                )
+              );
+            }
           } catch {}
         }
       }
