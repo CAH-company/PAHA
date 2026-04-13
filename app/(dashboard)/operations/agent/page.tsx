@@ -140,6 +140,7 @@ function inlineFormat(text: string): React.ReactNode {
 // ─── MESSAGE BUBBLE ───────────────────────────────────────────────────────────
 function MessageBubble({ message, isStreaming }: { message: Message; isStreaming?: boolean }) {
   const showToolStatus = isStreaming && message.tool && !message.content;
+  const showTyping = isStreaming && !message.content && !message.tool;
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
@@ -175,14 +176,25 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
             <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{message.content}</p>
           ) : (
             <div className="prose-sm">
-              {renderContent(message.content)}
+              {/* Animacja pisania — trzy kropki gdy agent jeszcze nie zaczął pisać */}
+              {showTyping && (
+                <span className="flex items-center gap-1 py-1">
+                  <span className="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              )}
+              {/* Status narzędzia */}
               {showToolStatus && (
                 <span className="flex items-center gap-1.5 text-xs text-text-muted italic">
                   <Loader2 size={11} className="animate-spin" />
                   {message.tool}
                 </span>
               )}
-              {isStreaming && !showToolStatus && (
+              {/* Treść odpowiedzi */}
+              {message.content && renderContent(message.content)}
+              {/* Kursor streamingu */}
+              {isStreaming && message.content && (
                 <span className="inline-block w-1.5 h-4 bg-accent/70 rounded-sm animate-pulse ml-0.5 align-middle" />
               )}
             </div>
