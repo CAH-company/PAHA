@@ -31,9 +31,21 @@ const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
 ];
 
+type PermissionsState = {
+  role: 'admin' | 'partner' | 'employee';
+  access_crm_leads: boolean;
+  access_crm_clients: boolean;
+  access_accounting: boolean;
+  access_marketing: boolean;
+  access_operations: boolean;
+  is_active: boolean;
+};
+
 export default function HRPage() {
-  const { employees, loading } = useEmployees();
+  const { employees, loading, refetch } = useEmployees();
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const [perms, setPerms] = useState<PermissionsState | null>(null);
+  const [saving, setSaving] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'employee', position: '' });
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -59,6 +71,40 @@ export default function HRPage() {
       setInviteError('Błąd połączenia z serwerem');
       setInviteStatus('error');
     }
+  }
+
+  function openEdit(empId: string) {
+    const emp = employees.find(e => e.id === empId)!;
+    setPerms({
+      role: emp.role as 'admin' | 'partner' | 'employee',
+      access_crm_leads: emp.access_crm_leads,
+      access_crm_clients: emp.access_crm_clients,
+      access_accounting: emp.access_accounting,
+      access_marketing: emp.access_marketing,
+      access_operations: emp.access_operations,
+      is_active: emp.is_active,
+    });
+    setEditingEmployee(empId);
+  }
+
+  async function savePerms() {
+    if (!editingEmployee || !perms) return;
+    setSaving(true);
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    await supabase.from('employees').update(perms).eq('id', editingEmployee);
+    setSaving(false);
+    setEditingEmployee(null);
+    refetch();
+  }
+
+  async function deactivate() {
+    if (!editingEmployee) return;
+    setSaving(true);
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    await supabase.from('employees').update({ is_active: false }).eq('id', editingEmployee);
+    setSaving(false);
+    setEditingEmployee(null);
+    refetch();
   }
 
   function closeInvite() {
@@ -120,7 +166,7 @@ export default function HRPage() {
 
             <div className="pt-3 border-t border-border flex items-center justify-between">
               <span className="text-xs text-text-muted">od {formatDate(emp.joined_at)}</span>
-              <Button variant="outline" size="sm" onClick={() => setEditingEmployee(emp.id)}>
+              <Button variant="outline" size="sm" onClick={() => openEdit(emp.id)}>
                 Edytuj uprawnienia
               </Button>
             </div>
@@ -190,7 +236,7 @@ export default function HRPage() {
       </Modal>
 
       {/* Edit permissions modal */}
-      {editingEmployee && (() => {
+      {editingEmployee && perms && (() => {
         const emp = employees.find(e => e.id === editingEmployee)!;
         return (
           <Modal open={true} onClose={() => setEditingEmployee(null)} title={`Uprawnienia — ${emp.name}`}>
@@ -200,8 +246,9 @@ export default function HRPage() {
                 <div className="flex gap-2">
                   {(['employee', 'partner', 'admin'] as const).map(role => (
                     <button key={role}
+                      onClick={() => setPerms(p => p ? { ...p, role } : p)}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                        emp.role === role
+                        perms.role === role
                           ? 'border-accent bg-accent text-white'
                           : 'border-border text-text-secondary hover:border-border-strong'
                       }`}>
@@ -217,11 +264,13 @@ export default function HRPage() {
                   {MODULE_PERMISSIONS.map(({ key, label }) => (
                     <label key={key} className="flex items-center justify-between cursor-pointer">
                       <span className="text-sm text-text-primary">{label}</span>
-                      <div className={`relative w-9 h-5 rounded-full transition-colors ${
-                        emp[key as keyof typeof emp] ? 'bg-accent' : 'bg-bg-muted'
-                      }`}>
+                      <div
+                        onClick={() => setPerms(p => p ? { ...p, [key]: !p[key as keyof PermissionsState] } : p)}
+                        className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${
+                          perms[key as keyof PermissionsState] ? 'bg-accent' : 'bg-bg-muted'
+                        }`}>
                         <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                          emp[key as keyof typeof emp] ? 'translate-x-4' : 'translate-x-0.5'
+                          perms[key as keyof PermissionsState] ? 'translate-x-4' : 'translate-x-0.5'
                         }`} />
                       </div>
                     </label>
@@ -234,10 +283,14 @@ export default function HRPage() {
               </div>
             </div>
             <div className="flex justify-between px-5 py-4 border-t border-border bg-bg-subtle">
-              <Button variant="ghost" className="text-red-500 hover:text-red-600">Dezaktywuj konto</Button>
+              <Button variant="ghost" className="text-red-500 hover:text-red-600" onClick={deactivate} disabled={saving}>
+                Dezaktywuj konto
+              </Button>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setEditingEmployee(null)}>Anuluj</Button>
-                <Button variant="primary">Zapisz</Button>
+                <Button variant="primary" onClick={savePerms} disabled={saving}>
+                  {saving ? 'Zapisywanie...' : 'Zapisz'}
+                </Button>
               </div>
             </div>
           </Modal>
