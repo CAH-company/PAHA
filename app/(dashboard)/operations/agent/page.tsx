@@ -365,7 +365,7 @@ export default function AgentPage() {
           </div>
           <div>
             <h1 className="text-sm font-semibold text-text-primary">Agent AI</h1>
-            <p className="text-[10px] text-text-muted">Asystent biznesowy · Claude Opus</p>
+            <p className="text-[10px] text-text-muted">Asystent biznesowy · Claude Sonnet</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

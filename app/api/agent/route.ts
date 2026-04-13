@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
           // Agentic loop — max 5 rund (tool use → result → odpowiedź)
           for (let round = 0; round < 5; round++) {
             const response = await anthropic.messages.create({
-              model: 'claude-opus-4-5',
+              model: 'claude-sonnet-4-6',
               max_tokens: 4096,
               system: systemPrompt,
               tools: TOOLS,
