@@ -13,7 +13,7 @@ export function useTasks() {
     const [tasksResult, columnsResult] = await Promise.all([
       supabase
         .from('tasks')
-        .select('*, task_assignees(employee:employees(id, name, email, phone, position, role, avatar_url, joined_at, is_active, access_crm_leads, access_crm_clients, access_accounting, access_marketing, access_operations, access_tasks, created_at, updated_at)), task_comments(id), task_checklists(items)')
+        .select('*, task_assignees(employee:employees(id, name, email, phone, position, role, avatar_url, joined_at, is_active, access_crm_leads, access_crm_clients, access_accounting, access_marketing, access_operations, access_tasks, created_at, updated_at)), task_comments(id), task_checklists(items), client:clients(id, name, company)')
         .order('position', { ascending: true }),
       supabase
         .from('task_columns')

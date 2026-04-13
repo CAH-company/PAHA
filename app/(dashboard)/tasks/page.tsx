@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { LayoutGrid, List, Sun, Plus, ChevronDown, AlertTriangle, MessageSquare, CheckSquare, MoreHorizontal, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { LayoutGrid, List, Sun, Plus, ChevronDown, AlertTriangle, MessageSquare, CheckSquare, MoreHorizontal, Loader2, Building2, ExternalLink } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useClients } from '@/hooks/useClients';
@@ -22,13 +23,15 @@ interface TaskCardProps {
 }
 
 function TaskCard({ task, onClick }: TaskCardProps) {
+  const router = useRouter();
   const isOverdue = task.due_date && new Date(task.due_date) < new Date();
   const priorityColor = PRIORITY_COLORS[task.priority];
+  const clientName = task.client?.company ?? task.client?.name ?? task.lead?.company ?? task.lead?.name;
 
   return (
     <div
       onClick={onClick}
-      className="bg-bg-base border border-border rounded-lg p-3 cursor-pointer hover:border-accent/40 hover:shadow-sm transition-all duration-100 group"
+      className="bg-bg-base border border-border rounded-lg p-3 cursor-pointer hover:border-accent/40 hover:shadow-sm transition-all duration-100 group relative"
     >
       {/* Priority bar */}
       <div
@@ -66,11 +69,18 @@ function TaskCard({ task, onClick }: TaskCardProps) {
         </div>
       )}
 
-      {(task.client ?? task.lead) && (
+      {clientName && (
         <div className="mt-2">
-          <Badge className="text-[9px] py-0">
-            {task.client?.company ?? task.client?.name ?? task.lead?.company ?? task.lead?.name}
-          </Badge>
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              if (task.client?.id) router.push(`/crm/clients/${task.client.id}`);
+            }}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent/10 hover:bg-accent/20 transition-colors"
+          >
+            <Building2 size={9} className="text-accent flex-shrink-0" />
+            <span className="text-[9px] font-medium text-accent truncate max-w-[140px]">{clientName}</span>
+          </button>
         </div>
       )}
     </div>
@@ -78,17 +88,30 @@ function TaskCard({ task, onClick }: TaskCardProps) {
 }
 
 function TaskDetailPanel({ task, onClose }: { task: Task; onClose: () => void }) {
+  const router = useRouter();
+  const clientName = task.client?.company ?? task.client?.name;
+
   return (
     <Modal open={!!task} onClose={onClose} size="xl" className="h-[80vh] flex flex-col">
       <div className="p-5 flex-1 overflow-y-auto">
         <div className="mb-4">
           <h2 className="text-lg font-bold text-text-primary">{task.title}</h2>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge color={PRIORITY_COLORS[task.priority]}>{PRIORITY_LABELS[task.priority]}</Badge>
             {task.due_date && (
               <span className={cn('text-xs', new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-text-muted')}>
                 Termin: {formatDate(task.due_date, 'dd.MM.yyyy HH:mm')}
               </span>
+            )}
+            {clientName && (
+              <button
+                onClick={() => { onClose(); router.push(`/crm/clients/${task.client!.id}`); }}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-accent/10 hover:bg-accent/20 transition-colors"
+              >
+                <Building2 size={11} className="text-accent" />
+                <span className="text-xs font-medium text-accent">{clientName}</span>
+                <ExternalLink size={9} className="text-accent/60" />
+              </button>
             )}
           </div>
         </div>
@@ -183,6 +206,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function TasksPage() {
+  const router = useRouter();
   const { tasks, columns, loading, refetch } = useTasks();
   const { employees } = useEmployees();
   const { clients } = useClients();
@@ -310,7 +334,7 @@ export default function TasksPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-bg-subtle">
-                {['Zadanie', 'Priorytet', 'Przypisani', 'Kolumna', 'Termin', ''].map(h => (
+                {['Zadanie', 'Klient', 'Priorytet', 'Przypisani', 'Kolumna', 'Termin', ''].map(h => (
                   <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -322,6 +346,17 @@ export default function TasksPage() {
                 return (
                   <tr key={task.id} className="hover:bg-bg-subtle transition-colors cursor-pointer" onClick={() => setSelectedTask(task)}>
                     <td className="px-4 py-3 text-sm font-medium text-text-primary">{task.title}</td>
+                    <td className="px-4 py-3">
+                      {(task.client?.company ?? task.client?.name) ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); router.push(`/crm/clients/${task.client!.id}`); }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent/10 hover:bg-accent/20 transition-colors"
+                        >
+                          <Building2 size={10} className="text-accent" />
+                          <span className="text-xs font-medium text-accent">{task.client?.company ?? task.client?.name}</span>
+                        </button>
+                      ) : <span className="text-xs text-text-muted">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge color={PRIORITY_COLORS[task.priority]}>{PRIORITY_LABELS[task.priority]}</Badge>
                     </td>
@@ -423,12 +458,10 @@ export default function TasksPage() {
               onChange={e => setAddForm(f => ({ ...f, assignee_id: e.target.value }))}
             />
           </div>
-          {(addForm.category === 'client' || addForm.category === 'onboarding' || addForm.category === 'documentation') && (
-            <Select label="Klient" value={addForm.client_id}
-              options={[{ value: '', label: '— brak —' }, ...clients.map((c: any) => ({ value: c.id, label: c.company ?? c.name }))]}
-              onChange={e => setAddForm(f => ({ ...f, client_id: e.target.value }))}
-            />
-          )}
+          <Select label="Klient (opcjonalnie)" value={addForm.client_id}
+            options={[{ value: '', label: '— brak —' }, ...clients.map((c: any) => ({ value: c.id, label: c.company ?? c.name }))]}
+            onChange={e => setAddForm(f => ({ ...f, client_id: e.target.value }))}
+          />
           <Input label="Termin" type="datetime-local" value={addForm.due_date}
             onChange={e => setAddForm(f => ({ ...f, due_date: e.target.value }))}
           />
