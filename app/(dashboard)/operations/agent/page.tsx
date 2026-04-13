@@ -2,19 +2,27 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  BotMessageSquare, Send, Plus, Trash2, Copy, Check,
-  AlertCircle, Loader2, ChevronDown, Paperclip, Settings,
+  BotMessageSquare, Send, Plus, Copy, Check,
+  AlertCircle, Loader2, Paperclip, X, FileText, FileSpreadsheet, Image,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
+interface AttachedFile {
+  name: string;
+  type: string;
+  data: string; // base64
+  size: number;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt: Date;
   tool?: string;
+  files?: AttachedFile[];
 }
 
 // ─── MARKDOWN-LITE RENDERER ───────────────────────────────────────────────────
@@ -173,7 +181,19 @@ function MessageBubble({ message, isStreaming }: { message: Message; isStreaming
             : 'bg-bg-base border border-border rounded-tl-sm'
         )}>
           {isUser ? (
-            <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{message.content}</p>
+            <div className="space-y-2">
+              {message.files && message.files.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {message.files.map((f, i) => (
+                    <span key={i} className="flex items-center gap-1 bg-white/20 rounded-md px-2 py-1 text-[11px] text-white/90">
+                      {fileIcon(f.type, f.name)}
+                      <span className="max-w-[120px] truncate">{f.name}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {message.content && <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{message.content}</p>}
+            </div>
           ) : (
             <div className="prose-sm">
               {/* Animacja pisania — trzy kropki gdy agent jeszcze nie zaczął pisać */}
@@ -230,15 +250,40 @@ const SUGGESTIONS = [
 ];
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
+const ACCEPTED = '.pdf,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg,.webp';
+
+function fileIcon(type: string, name: string) {
+  if (type.startsWith('image/')) return <Image size={12} />;
+  if (type.includes('pdf')) return <FileText size={12} />;
+  if (type.includes('sheet') || type.includes('excel') || name.endsWith('.csv')) return <FileSpreadsheet size={12} />;
+  return <FileText size={12} />;
+}
+
 export default function AgentPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [files, setFiles] = useState<AttachedFile[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [noApiKey, setNoApiKey] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamingIdRef = useRef<string | null>(null);
+
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    const loaded: AttachedFile[] = await Promise.all(picked.map(f => new Promise<AttachedFile>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve({ name: f.name, type: f.type, data: base64, size: f.size });
+      };
+      reader.readAsDataURL(f);
+    })));
+    setFiles(prev => [...prev, ...loaded]);
+    e.target.value = '';
+  }
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -246,9 +291,10 @@ export default function AgentPage() {
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, attachedFiles?: AttachedFile[]) => {
     const trimmed = text.trim();
-    if (!trimmed || isStreaming) return;
+    const filesToSend = attachedFiles ?? files;
+    if ((!trimmed && !filesToSend.length) || isStreaming) return;
 
     setError(null);
     setNoApiKey(false);
@@ -258,6 +304,7 @@ export default function AgentPage() {
       role: 'user',
       content: trimmed,
       createdAt: new Date(),
+      files: filesToSend.length > 0 ? filesToSend : undefined,
     };
 
     const assistantId = crypto.randomUUID();
@@ -272,12 +319,13 @@ export default function AgentPage() {
 
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setInput('');
+    setFiles([]);
     setIsStreaming(true);
 
-    // Build history for API (exclude the empty assistant placeholder)
     const history = [...messages, userMsg].map((m) => ({
       role: m.role,
       content: m.content,
+      files: m.files,
     }));
 
     try {
@@ -365,6 +413,7 @@ export default function AgentPage() {
 
   const clearChat = () => {
     setMessages([]);
+    setFiles([]);
     setError(null);
     setNoApiKey(false);
     inputRef.current?.focus();
@@ -474,11 +523,37 @@ export default function AgentPage() {
 
       {/* Input area */}
       <div className="flex-shrink-0 px-6 pb-6 pt-3 bg-bg-base border-t border-border">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto space-y-2">
+          {/* Podgląd załączonych plików */}
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {files.map((f, i) => (
+                <div key={i} className="flex items-center gap-1.5 bg-accent/10 border border-accent/20 rounded-lg px-2.5 py-1.5 text-xs text-accent">
+                  {fileIcon(f.type, f.name)}
+                  <span className="max-w-[140px] truncate">{f.name}</span>
+                  <button onClick={() => setFiles(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-500 transition-colors ml-0.5">
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className={cn(
-            'flex items-end gap-3 bg-bg-subtle border rounded-2xl px-4 py-3 transition-colors',
+            'flex items-end gap-2 bg-bg-subtle border rounded-2xl px-3 py-3 transition-colors',
             isStreaming ? 'border-border' : 'border-border hover:border-accent/40 focus-within:border-accent/60'
           )}>
+            {/* Przycisk uploadu */}
+            <input ref={fileInputRef} type="file" accept={ACCEPTED} multiple className="hidden" onChange={handleFiles} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming}
+              className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-text-muted hover:text-accent hover:bg-accent/10 transition-colors disabled:opacity-30"
+              title="Załącz plik (PDF, Excel, CSV, zdjęcie)"
+            >
+              <Paperclip size={15} />
+            </button>
+
             <textarea
               ref={inputRef}
               value={input}
@@ -496,22 +571,19 @@ export default function AgentPage() {
             />
             <button
               onClick={() => sendMessage(input)}
-              disabled={!input.trim() || isStreaming}
+              disabled={(!input.trim() && !files.length) || isStreaming}
               className={cn(
                 'w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-                input.trim() && !isStreaming
+                (input.trim() || files.length) && !isStreaming
                   ? 'bg-accent hover:bg-accent-hover text-white shadow-sm'
                   : 'bg-bg-muted text-text-muted cursor-not-allowed'
               )}
             >
-              {isStreaming
-                ? <Loader2 size={14} className="animate-spin" />
-                : <Send size={14} />
-              }
+              {isStreaming ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             </button>
           </div>
-          <p className="text-[10px] text-text-muted text-center mt-2">
-            Agent może popełniać błędy — weryfikuj ważne informacje.
+          <p className="text-[10px] text-text-muted text-center">
+            PDF, Excel, CSV, obrazy · Agent może popełniać błędy — weryfikuj ważne informacje.
           </p>
         </div>
       </div>

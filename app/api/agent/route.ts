@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import * as XLSX from 'xlsx';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +43,58 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
 ];
+
+// Konwertuje plik (base64) na content block dla Claude
+function fileToContentBlock(file: { name: string; type: string; data: string }): Anthropic.ContentBlockParam[] {
+  const blocks: Anthropic.ContentBlockParam[] = [];
+
+  if (file.type === 'application/pdf') {
+    blocks.push({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: file.data },
+    } as any);
+    return blocks;
+  }
+
+  if (file.type.startsWith('image/')) {
+    const mediaType = file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    blocks.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: file.data } });
+    return blocks;
+  }
+
+  // Excel / CSV — konwertuj do tekstu
+  if (
+    file.type.includes('spreadsheet') ||
+    file.type.includes('excel') ||
+    file.type === 'text/csv' ||
+    file.name.endsWith('.xlsx') ||
+    file.name.endsWith('.xls') ||
+    file.name.endsWith('.csv')
+  ) {
+    try {
+      const buffer = Buffer.from(file.data, 'base64');
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheets = workbook.SheetNames.map(name => {
+        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+        return `## Arkusz: ${name}\n${csv}`;
+      }).join('\n\n');
+      blocks.push({ type: 'text', text: `Plik: ${file.name}\n\n${sheets}` });
+    } catch {
+      blocks.push({ type: 'text', text: `[Nie udało się odczytać pliku: ${file.name}]` });
+    }
+    return blocks;
+  }
+
+  // Plik tekstowy
+  if (file.type.startsWith('text/')) {
+    const text = Buffer.from(file.data, 'base64').toString('utf-8');
+    blocks.push({ type: 'text', text: `Plik: ${file.name}\n\n${text}` });
+    return blocks;
+  }
+
+  blocks.push({ type: 'text', text: `[Załączono plik: ${file.name} — nieobsługiwany format]` });
+  return blocks;
+}
 
 async function executeTool(name: string, input: Record<string, any>, supabaseUrl: string, supabaseKey: string): Promise<string> {
   const headers = {
@@ -138,10 +191,18 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 
         try {
-          let currentMessages: Anthropic.MessageParam[] = messages.map((m: any) => ({
-            role: m.role,
-            content: m.content,
-          }));
+          // Buduj wiadomości — obsługuj pliki jako content blocks
+          let currentMessages: Anthropic.MessageParam[] = messages.map((m: any) => {
+            if (!m.files?.length) {
+              return { role: m.role, content: m.content };
+            }
+            const blocks: Anthropic.ContentBlockParam[] = [];
+            for (const file of m.files) {
+              blocks.push(...fileToContentBlock(file));
+            }
+            if (m.content) blocks.push({ type: 'text', text: m.content });
+            return { role: m.role, content: blocks };
+          });
 
           // Rundy tool use (bez streamingu — potrzebujemy pełnej odpowiedzi żeby przetworzyć narzędzia)
           for (let round = 0; round < 4; round++) {
@@ -198,7 +259,16 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (e: any) {
-          send({ error: e.message ?? 'Nieznany błąd' });
+          const msg = e.message ?? '';
+          let friendly = 'Wystąpił błąd. Spróbuj ponownie.';
+          if (msg.includes('credit balance') || msg.includes('too low') || e.status === 400) {
+            friendly = 'Brak kredytów API Anthropic. Doładuj konto na console.anthropic.com → Plans & Billing.';
+          } else if (msg.includes('invalid_api_key') || e.status === 401) {
+            friendly = 'Nieprawidłowy klucz API. Sprawdź klucz w Ustawieniach → AI Agent.';
+          } else if (msg.includes('overloaded') || e.status === 529) {
+            friendly = 'Serwery Anthropic są przeciążone. Poczekaj chwilę i spróbuj ponownie.';
+          }
+          send({ text: `⚠️ ${friendly}` });
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         }
