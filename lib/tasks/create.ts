@@ -20,7 +20,27 @@ export async function createTask(input: CreateTaskInput): Promise<{ ok: true; ta
   let targetBoardId = input.board_id;
 
   if (!targetColumnId) {
-    const { data: boards } = await admin.from('task_boards').select('id').limit(1);
+    // Znajdź istniejący board
+    let { data: boards } = await admin.from('task_boards').select('id').limit(1);
+
+    // Jeśli nie ma żadnego — utwórz domyślny
+    if (!boards?.length) {
+      const { data: newBoard } = await admin
+        .from('task_boards')
+        .insert({ name: 'Główna tablica' })
+        .select('id')
+        .single();
+      if (newBoard) {
+        // Utwórz domyślne kolumny
+        await admin.from('task_columns').insert([
+          { board_id: newBoard.id, name: 'Do zrobienia', color: '#94a3b8', position: 0 },
+          { board_id: newBoard.id, name: 'W toku', color: '#6366f1', position: 1 },
+          { board_id: newBoard.id, name: 'Gotowe', color: '#10b981', position: 2 },
+        ]);
+        boards = [newBoard];
+      }
+    }
+
     targetBoardId = boards?.[0]?.id;
     if (targetBoardId) {
       const { data: cols } = await admin
