@@ -324,6 +324,12 @@ export default function AgentPage() {
                   m.id === assistantId ? { ...m, tool: toolLabels[parsed.tool] ?? `Używam: ${parsed.tool}` } : m
                 )
               );
+            } else if (parsed.error) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content: `Błąd: ${parsed.error}`, tool: undefined } : m
+                )
+              );
             }
           } catch {}
         }

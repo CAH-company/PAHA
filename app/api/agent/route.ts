@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
           }));
 
           // Agentic loop — max 5 rund (tool use → result → odpowiedź)
+          let answered = false;
           for (let round = 0; round < 5; round++) {
             const response = await anthropic.messages.create({
               model,
@@ -159,30 +160,23 @@ export async function POST(req: NextRequest) {
               messages: currentMessages,
             });
 
-            if (response.stop_reason === 'end_turn') {
-              // Ostateczna odpowiedź — streamuj tekst
-              for (const block of response.content) {
-                if (block.type === 'text') {
-                  // Symuluj streaming po słowach
-                  const words = block.text.split(/(?<=\s)/);
-                  for (const word of words) {
-                    send({ text: word });
-                    await new Promise(r => setTimeout(r, 5));
-                  }
-                }
-              }
-              break;
-            }
+            // Wyciągnij tekst z odpowiedzi
+            const textBlocks = response.content.filter(b => b.type === 'text');
+            const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
 
-            if (response.stop_reason === 'tool_use') {
-              // Wykonaj narzędzia
-              const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+            if (toolUseBlocks.length > 0) {
+              // Agent chce użyć narzędzi
               const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
               for (const block of toolUseBlocks) {
                 if (block.type !== 'tool_use') continue;
-                send({ tool: block.name }); // informuj frontend że agent coś sprawdza
-                const result = await executeTool(block.name, block.input as Record<string, any>, supabaseUrl, supabaseKey);
+                send({ tool: block.name });
+                const result = await executeTool(
+                  block.name,
+                  block.input as Record<string, any>,
+                  supabaseUrl,
+                  supabaseKey
+                );
                 toolResults.push({
                   type: 'tool_result',
                   tool_use_id: block.id,
@@ -190,7 +184,6 @@ export async function POST(req: NextRequest) {
                 });
               }
 
-              // Dodaj odpowiedź asystenta i wyniki narzędzi do historii
               currentMessages = [
                 ...currentMessages,
                 { role: 'assistant', content: response.content },
@@ -199,7 +192,20 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
+            // Brak tool_use — wyślij tekst i zakończ
+            if (textBlocks.length > 0) {
+              for (const block of textBlocks) {
+                if (block.type === 'text' && block.text) {
+                  send({ text: block.text });
+                }
+              }
+              answered = true;
+            }
             break;
+          }
+
+          if (!answered) {
+            send({ text: 'Przepraszam, wystąpił problem z odpowiedzią. Spróbuj ponownie.' });
           }
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
