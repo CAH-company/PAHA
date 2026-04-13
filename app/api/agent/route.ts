@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createTask } from '@/lib/tasks/create';
 import * as XLSX from 'xlsx';
 
 export const runtime = 'nodejs';
@@ -122,7 +123,6 @@ async function executeTool(
   input: Record<string, any>,
   supabaseUrl: string,
   supabaseKey: string,
-  appUrl: string,
 ): Promise<string> {
   const headers = {
     apikey: supabaseKey,
@@ -131,51 +131,43 @@ async function executeTool(
   };
 
   if (name === 'create_task') {
+    const admin = createAdminClient();
+
     // Znajdź pracownika po imieniu/nazwisku
     let assignee_ids: string[] = [];
     if (input.assignee_name) {
-      const q = encodeURIComponent(input.assignee_name);
-      const empRes = await fetch(
-        `${supabaseUrl}/rest/v1/employees?select=id,name&or=(name.ilike.*${q}*)&limit=5`,
-        { headers }
-      );
-      const employees = await empRes.json();
-      if (Array.isArray(employees) && employees.length > 0) {
-        assignee_ids = [employees[0].id];
-      }
+      const q = input.assignee_name;
+      const { data: emps } = await admin
+        .from('employees')
+        .select('id, name')
+        .ilike('name', `%${q}%`)
+        .limit(5);
+      if (emps && emps.length > 0) assignee_ids = [emps[0].id];
     }
 
-    // Znajdź klienta po nazwie jeśli podano
+    // Znajdź klienta po nazwie
     let client_id: string | null = null;
     if (input.client_name) {
-      const q = encodeURIComponent(input.client_name);
-      const clientRes = await fetch(
-        `${supabaseUrl}/rest/v1/clients?select=id,name,company&or=(name.ilike.*${q}*,company.ilike.*${q}*)&limit=1`,
-        { headers }
-      );
-      const clients = await clientRes.json();
-      if (Array.isArray(clients) && clients.length > 0) client_id = clients[0].id;
+      const q = input.client_name;
+      const { data: cls } = await admin
+        .from('clients')
+        .select('id, name, company')
+        .or(`name.ilike.%${q}%,company.ilike.%${q}%`)
+        .limit(1);
+      if (cls && cls.length > 0) client_id = cls[0].id;
     }
 
-    // Utwórz zadanie przez API route (ma dostęp do board/column)
-    const res = await fetch(`${appUrl}/api/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-internal': supabaseKey },
-      body: JSON.stringify({
-        title: input.title,
-        description: input.description,
-        priority: input.priority ?? 'normal',
-        due_date: input.due_date,
-        category: input.category ?? 'general',
-        client_id,
-        assignee_ids,
-      }),
+    const result = await createTask({
+      title: input.title,
+      description: input.description,
+      priority: input.priority ?? 'normal',
+      due_date: input.due_date,
+      category: input.category ?? 'general',
+      client_id,
+      assignee_ids,
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return `Błąd tworzenia zadania: ${err.error ?? res.status}`;
-    }
+    if (!result.ok) return `Błąd tworzenia zadania: ${result.error}`;
 
     const assigneeName = input.assignee_name ? ` dla ${input.assignee_name}` : '';
     const clientInfo = input.client_name ? ` (klient: ${input.client_name})` : '';
@@ -241,7 +233,6 @@ export async function POST(req: NextRequest) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
     // Załaduj zespół do system promptu
     const { data: team } = await admin
@@ -327,7 +318,7 @@ export async function POST(req: NextRequest) {
             for (const block of toolUseBlocks) {
               if (block.type !== 'tool_use') continue;
               send({ tool: block.name });
-              const result = await executeTool(block.name, block.input as Record<string, any>, supabaseUrl, supabaseKey, appUrl);
+              const result = await executeTool(block.name, block.input as Record<string, any>, supabaseUrl, supabaseKey);
               toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result });
             }
 
