@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
@@ -96,7 +97,8 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return new Response('Unauthorized', { status: 401 });
 
-    const { data: settings } = await supabase
+    const admin = createAdminClient();
+    const { data: settings } = await admin
       .from('app_settings')
       .select('key, value')
       .in('key', ['anthropic_api_key', 'anthropic_model']);

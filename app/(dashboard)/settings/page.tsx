@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client';
 
 const SIDEBAR_ITEMS = [
   { id: 'general', label: 'Ogólne', icon: Settings },
@@ -45,33 +44,37 @@ function AISection() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['anthropic_api_key', 'anthropic_model'])
-      .then(({ data }) => {
-        if (!data) return;
-        const key = data.find(r => r.key === 'anthropic_api_key')?.value ?? '';
-        const mdl = data.find(r => r.key === 'anthropic_model')?.value ?? 'claude-sonnet-4-6';
-        setApiKey(key);
-        setModel(mdl);
+    fetch('/api/settings?keys=anthropic_api_key,anthropic_model')
+      .then(r => r.json())
+      .then(data => {
+        setApiKey(data.anthropic_api_key ?? '');
+        setModel(data.anthropic_model ?? 'claude-sonnet-4-6');
         setLoading(false);
       });
   }, []);
 
   async function save() {
     setSaving(true);
-    const supabase = createClient();
-    await supabase.from('app_settings').upsert([
-      { key: 'anthropic_api_key', value: apiKey, is_secret: true, label: 'Anthropic API Key' },
-      { key: 'anthropic_model', value: model, is_secret: false, label: 'Model Claude' },
-    ], { onConflict: 'key' });
+    setError('');
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([
+        { key: 'anthropic_api_key', value: apiKey, is_secret: true, label: 'Anthropic API Key' },
+        { key: 'anthropic_model', value: model, is_secret: false, label: 'Model Claude' },
+      ]),
+    });
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    if (res.ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } else {
+      const data = await res.json();
+      setError(data.error ?? 'Błąd zapisu');
+    }
   }
 
   if (loading) return (
@@ -115,6 +118,9 @@ function AISection() {
         ]}
         onChange={e => setModel(e.target.value)}
       />
+      {error && (
+        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+      )}
       <div className="flex items-center gap-3">
         <Button variant="primary" onClick={save} disabled={saving || !apiKey}>
           {saving ? <><Loader2 size={13} className="animate-spin" /> Zapisywanie...</> : 'Zapisz'}
