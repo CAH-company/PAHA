@@ -256,7 +256,13 @@ export async function POST(req: NextRequest) {
       .select('title, folder, content')
       .order('folder', { ascending: true });
 
-    let systemPrompt = BASE_SYSTEM_PROMPT;
+    const now = new Date().toLocaleString('pl-PL', {
+      timeZone: 'Europe/Warsaw',
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+
+    let systemPrompt = BASE_SYSTEM_PROMPT + `\n\nAktualna data i godzina: ${now} (strefa: Europa/Warszawa)`;
 
     if (team && team.length > 0) {
       const teamText = team.map(e =>
