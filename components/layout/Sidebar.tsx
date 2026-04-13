@@ -60,8 +60,8 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/operations/agent', icon: BotMessageSquare, label: 'Agent AI' },
       { href: '/operations/mail', icon: Mail, label: 'Mail' },
-      { href: '/operations/documents', icon: FileText, label: 'Dokumenty' },
-      { href: '/marketing', icon: Megaphone, label: 'Marketing' },
+      { href: '/operations/documents', icon: FileText, label: 'Dokumenty (WIP)' },
+      { href: '/marketing', icon: Megaphone, label: 'Marketing (WIP)' },
     ],
   },
   {
