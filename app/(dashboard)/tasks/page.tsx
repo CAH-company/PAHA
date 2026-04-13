@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { LayoutGrid, List, Sun, Plus, ChevronDown, AlertTriangle, MessageSquare, CheckSquare, MoreHorizontal } from 'lucide-react';
+import { LayoutGrid, List, Sun, Plus, ChevronDown, AlertTriangle, MessageSquare, CheckSquare, MoreHorizontal, Loader2 } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useEmployees } from '@/hooks/useEmployees';
+import { useClients } from '@/hooks/useClients';
 import type { Task } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -161,12 +162,69 @@ function TaskDetailPanel({ task, onClose }: { task: Task; onClose: () => void })
   );
 }
 
+const CATEGORY_OPTIONS = [
+  { value: 'general', label: 'Ogólne firmowe' },
+  { value: 'client', label: 'Klienckie' },
+  { value: 'onboarding', label: 'Onboarding' },
+  { value: 'documentation', label: 'Dokumentacja' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'hr', label: 'HR' },
+  { value: 'operations', label: 'Operacje' },
+];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  general: '#94a3b8',
+  client: '#6366f1',
+  onboarding: '#10b981',
+  documentation: '#f59e0b',
+  marketing: '#ec4899',
+  hr: '#8b5cf6',
+  operations: '#3b82f6',
+};
+
 export default function TasksPage() {
-  const { tasks, columns, loading } = useTasks();
+  const { tasks, columns, loading, refetch } = useTasks();
   const { employees } = useEmployees();
+  const { clients } = useClients();
   const [view, setView] = useState<ViewMode>('kanban');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('');
+  const [addForm, setAddForm] = useState({
+    title: '', description: '', priority: 'normal', column_id: '',
+    due_date: '', assignee_id: '', category: 'general', client_id: '',
+  });
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState('');
+
+  async function handleAddTask() {
+    if (!addForm.title) return;
+    setAddLoading(true);
+    setAddError('');
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: addForm.title,
+        description: addForm.description || null,
+        priority: addForm.priority,
+        column_id: addForm.column_id || undefined,
+        due_date: addForm.due_date || null,
+        assignee_ids: addForm.assignee_id ? [addForm.assignee_id] : [],
+        category: addForm.category,
+        client_id: addForm.client_id || null,
+      }),
+    });
+    setAddLoading(false);
+    if (!res.ok) {
+      const d = await res.json();
+      setAddError(d.error ?? 'Błąd zapisu');
+      return;
+    }
+    setShowAddModal(false);
+    setAddForm({ title: '', description: '', priority: 'normal', column_id: '', due_date: '', assignee_id: '', category: 'general', client_id: '' });
+    refetch();
+  }
 
   if (loading) {
     return (
@@ -334,22 +392,56 @@ export default function TasksPage() {
       {/* Add task modal */}
       <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Nowe zadanie">
         <div className="p-5 space-y-4">
-          <Input label="Tytuł *" placeholder="Opis zadania" />
+          <Input
+            label="Tytuł *"
+            placeholder="Opis zadania"
+            value={addForm.title}
+            onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Priorytet" options={[
-              { value: 'low', label: 'Niski' },
-              { value: 'normal', label: 'Normalny' },
-              { value: 'high', label: 'Wysoki' },
-              { value: 'urgent', label: 'Pilny' },
-            ]} defaultValue="normal" />
-            <Select label="Kolumna" options={columns.map(c => ({ value: c.id, label: c.name }))} />
+            <Select label="Kategoria" value={addForm.category}
+              options={CATEGORY_OPTIONS}
+              onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))}
+            />
+            <Select label="Priorytet" value={addForm.priority}
+              options={[
+                { value: 'low', label: 'Niski' },
+                { value: 'normal', label: 'Normalny' },
+                { value: 'high', label: 'Wysoki' },
+                { value: 'urgent', label: 'Pilny' },
+              ]}
+              onChange={e => setAddForm(f => ({ ...f, priority: e.target.value }))}
+            />
           </div>
-          <Input label="Termin" type="datetime-local" />
-          <Select label="Przypisz do" options={employees.map(e => ({ value: e.id, label: e.name }))} placeholder="Wybierz osobę" />
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Kolumna" value={addForm.column_id}
+              options={columns.map(c => ({ value: c.id, label: c.name }))}
+              onChange={e => setAddForm(f => ({ ...f, column_id: e.target.value }))}
+            />
+            <Select label="Przypisz do" value={addForm.assignee_id}
+              options={[{ value: '', label: '— brak —' }, ...employees.map(e => ({ value: e.id, label: e.name }))]}
+              onChange={e => setAddForm(f => ({ ...f, assignee_id: e.target.value }))}
+            />
+          </div>
+          {(addForm.category === 'client' || addForm.category === 'onboarding' || addForm.category === 'documentation') && (
+            <Select label="Klient" value={addForm.client_id}
+              options={[{ value: '', label: '— brak —' }, ...clients.map((c: any) => ({ value: c.id, label: c.company ?? c.name }))]}
+              onChange={e => setAddForm(f => ({ ...f, client_id: e.target.value }))}
+            />
+          )}
+          <Input label="Termin" type="datetime-local" value={addForm.due_date}
+            onChange={e => setAddForm(f => ({ ...f, due_date: e.target.value }))}
+          />
+          <Input label="Opis (opcjonalnie)" placeholder="Szczegóły zadania..." value={addForm.description}
+            onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))}
+          />
+          {addError && <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addError}</p>}
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-border bg-bg-subtle">
           <Button variant="ghost" onClick={() => setShowAddModal(false)}>Anuluj</Button>
-          <Button variant="primary">Dodaj zadanie</Button>
+          <Button variant="primary" onClick={handleAddTask} disabled={!addForm.title || addLoading}>
+            {addLoading ? <><Loader2 size={13} className="animate-spin" /> Zapisywanie...</> : 'Dodaj zadanie'}
+          </Button>
         </div>
       </Modal>
     </div>

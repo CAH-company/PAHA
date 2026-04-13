@@ -17,6 +17,27 @@ Odpowiadaj po polsku. Bądź konkretny i rzeczowy.`;
 
 const TOOLS: Anthropic.Tool[] = [
   {
+    name: 'create_task',
+    description: 'Tworzy zadanie dla członka zespołu na tablicy zadań. Używaj gdy użytkownik prosi o stworzenie zadania, przypisanie czegoś komuś lub zaplanowanie pracy.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Tytuł zadania — krótki i konkretny' },
+        description: { type: 'string', description: 'Szczegółowy opis zadania (opcjonalnie)' },
+        assignee_name: { type: 'string', description: 'Imię lub nazwisko osoby do której przypisać zadanie (np. "Marek", "Kowalski")' },
+        priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'], description: 'Priorytet zadania' },
+        due_date: { type: 'string', description: 'Termin w formacie ISO 8601, np. 2026-04-20T12:00:00' },
+        category: {
+          type: 'string',
+          enum: ['general', 'client', 'onboarding', 'documentation', 'marketing', 'hr', 'operations'],
+          description: 'Kategoria: general=firmowe, client=klienckie, onboarding, documentation, marketing, hr, operations',
+        },
+        client_name: { type: 'string', description: 'Nazwa klienta jeśli zadanie jest powiązane z klientem' },
+      },
+      required: ['title'],
+    },
+  },
+  {
     name: 'search_crm',
     description: 'Wyszukuje leady i klientów w CRM.',
     input_schema: {
@@ -96,12 +117,70 @@ function fileToContentBlock(file: { name: string; type: string; data: string }):
   return blocks;
 }
 
-async function executeTool(name: string, input: Record<string, any>, supabaseUrl: string, supabaseKey: string): Promise<string> {
+async function executeTool(
+  name: string,
+  input: Record<string, any>,
+  supabaseUrl: string,
+  supabaseKey: string,
+  appUrl: string,
+): Promise<string> {
   const headers = {
     apikey: supabaseKey,
     Authorization: `Bearer ${supabaseKey}`,
     'Content-Type': 'application/json',
   };
+
+  if (name === 'create_task') {
+    // Znajdź pracownika po imieniu/nazwisku
+    let assignee_ids: string[] = [];
+    if (input.assignee_name) {
+      const q = encodeURIComponent(input.assignee_name);
+      const empRes = await fetch(
+        `${supabaseUrl}/rest/v1/employees?select=id,name&or=(name.ilike.*${q}*)&limit=5`,
+        { headers }
+      );
+      const employees = await empRes.json();
+      if (Array.isArray(employees) && employees.length > 0) {
+        assignee_ids = [employees[0].id];
+      }
+    }
+
+    // Znajdź klienta po nazwie jeśli podano
+    let client_id: string | null = null;
+    if (input.client_name) {
+      const q = encodeURIComponent(input.client_name);
+      const clientRes = await fetch(
+        `${supabaseUrl}/rest/v1/clients?select=id,name,company&or=(name.ilike.*${q}*,company.ilike.*${q}*)&limit=1`,
+        { headers }
+      );
+      const clients = await clientRes.json();
+      if (Array.isArray(clients) && clients.length > 0) client_id = clients[0].id;
+    }
+
+    // Utwórz zadanie przez API route (ma dostęp do board/column)
+    const res = await fetch(`${appUrl}/api/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal': supabaseKey },
+      body: JSON.stringify({
+        title: input.title,
+        description: input.description,
+        priority: input.priority ?? 'normal',
+        due_date: input.due_date,
+        category: input.category ?? 'general',
+        client_id,
+        assignee_ids,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return `Błąd tworzenia zadania: ${err.error ?? res.status}`;
+    }
+
+    const assigneeName = input.assignee_name ? ` dla ${input.assignee_name}` : '';
+    const clientInfo = input.client_name ? ` (klient: ${input.client_name})` : '';
+    return `Zadanie "${input.title}"${assigneeName}${clientInfo} zostało utworzone na tablicy zadań.`;
+  }
 
   if (name === 'search_crm') {
     const limit = input.limit ?? 10;
@@ -162,6 +241,14 @@ export async function POST(req: NextRequest) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
+    // Załaduj zespół do system promptu
+    const { data: team } = await admin
+      .from('employees')
+      .select('id, name, email, role, position')
+      .eq('is_active', true)
+      .order('name');
 
     // Załaduj bazę wiedzy
     const { data: knowledge } = await supabase
@@ -170,6 +257,14 @@ export async function POST(req: NextRequest) {
       .order('folder', { ascending: true });
 
     let systemPrompt = BASE_SYSTEM_PROMPT;
+
+    if (team && team.length > 0) {
+      const teamText = team.map(e =>
+        `- ${e.name} (${e.role}${e.position ? ', ' + e.position : ''}) — ID: ${e.id}`
+      ).join('\n');
+      systemPrompt += `\n\n═══════════════════════════════\nZESPÓŁ\n═══════════════════════════════\n${teamText}`;
+    }
+
     if (knowledge && knowledge.length > 0) {
       const knowledgeText = knowledge
         .map(k => `### ${k.folder ? k.folder + ' / ' : ''}${k.title}\n${k.content}`)
@@ -226,7 +321,7 @@ export async function POST(req: NextRequest) {
             for (const block of toolUseBlocks) {
               if (block.type !== 'tool_use') continue;
               send({ tool: block.name });
-              const result = await executeTool(block.name, block.input as Record<string, any>, supabaseUrl, supabaseKey);
+              const result = await executeTool(block.name, block.input as Record<string, any>, supabaseUrl, supabaseKey, appUrl);
               toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result });
             }
 
