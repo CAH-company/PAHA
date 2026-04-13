@@ -200,24 +200,21 @@ function TaskDetailPanel({ task, columns, onClose, onEdit, onMoved, onDeleted }:
   }
 
   return (
-    <Modal open={!!task} onClose={onClose} size="xl" className="h-[80vh] flex flex-col">
+    <Modal open={!!task} onClose={onClose} title={task.title} size="xl" className="h-[80vh] flex flex-col">
       <div className="p-5 flex-1 overflow-y-auto">
-        <div className="mb-4">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="text-lg font-bold text-text-primary">{task.title}</h2>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <button onClick={onEdit}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium bg-bg-subtle hover:bg-bg-muted border border-border text-text-secondary transition-colors">
-                <Pencil size={12} /> Edytuj
-              </button>
-              <button onClick={handleDelete} disabled={deleting}
-                className="p-1.5 rounded-md hover:bg-red-50 text-text-muted hover:text-red-500 transition-colors">
-                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              </button>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
+        {/* Action bar */}
+        <div className="flex items-center gap-2 mb-4">
+          <button onClick={onEdit}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-bg-subtle hover:bg-bg-muted border border-border text-text-secondary transition-colors">
+            <Pencil size={12} /> Edytuj
+          </button>
+          <button onClick={handleDelete} disabled={deleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-red-50 border border-border text-text-muted hover:text-red-500 hover:border-red-200 transition-colors">
+            {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+            {deleting ? 'Usuwanie…' : 'Usuń'}
+          </button>
+          <div className="flex items-center gap-2 ml-auto flex-wrap">
             <Badge color={PRIORITY_COLORS[task.priority]}>{PRIORITY_LABELS[task.priority]}</Badge>
             {task.due_date && (
               <span className={cn('text-xs', new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-text-muted')}>
@@ -238,27 +235,32 @@ function TaskDetailPanel({ task, columns, onClose, onEdit, onMoved, onDeleted }:
 
         {/* Move between columns */}
         <div className="mb-5">
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Status / kolumna</p>
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Status</p>
+            {moving && <Loader2 size={11} className="animate-spin text-text-muted" />}
+          </div>
           <div className="flex flex-wrap gap-1.5">
-            {columns.map(col => (
-              <button
-                key={col.id}
-                disabled={moving || col.id === task.column_id}
-                onClick={() => moveToColumn(col.id)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
-                  col.id === task.column_id
-                    ? 'border-transparent text-white'
-                    : 'border-border bg-bg-subtle hover:bg-bg-muted text-text-secondary'
-                )}
-                style={col.id === task.column_id ? { backgroundColor: col.color } : {}}
-              >
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: col.id === task.column_id ? 'rgba(255,255,255,0.7)' : col.color }} />
-                {col.name}
-                {moving && col.id !== task.column_id && <Loader2 size={10} className="animate-spin" />}
-              </button>
-            ))}
+            {columns.map(col => {
+              const isCurrent = col.id === task.column_id;
+              return (
+                <button
+                  key={col.id}
+                  disabled={moving || isCurrent}
+                  onClick={() => moveToColumn(col.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                    isCurrent
+                      ? 'border-transparent text-white cursor-default'
+                      : 'border-border bg-bg-subtle hover:bg-bg-muted text-text-secondary disabled:opacity-50'
+                  )}
+                  style={isCurrent ? { backgroundColor: col.color } : {}}
+                >
+                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: isCurrent ? 'rgba(255,255,255,0.7)' : col.color }} />
+                  {col.name}
+                </button>
+              );
+            })}
           </div>
         </div>
 
