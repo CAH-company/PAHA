@@ -12,6 +12,7 @@ import {
   Handshake,
   Archive,
   DollarSign,
+  ReceiptText,
   FileText,
   Megaphone,
   CheckSquare,
@@ -53,6 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Finanse',
     items: [
       { href: '/accounting', icon: DollarSign, label: 'Księgowość' },
+      { href: '/quotes', icon: ReceiptText, label: 'Oferty' },
     ],
   },
   {

@@ -207,6 +207,40 @@ export interface Campaign {
   created_at: string;
 }
 
+// ─── Quotes ──────────────────────────────────────────────────────────────────
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+
+export interface QuoteLineItem {
+  id: string;
+  name: string;
+  description?: string;
+  quantity: number;
+  unit: 'szt' | 'godz' | 'mies' | 'projekt' | 'dzień';
+  unit_price_net: number;
+  vat_rate: number; // 0, 5, 8, 23
+  amount_net: number;
+  vat_amount: number;
+  amount_gross: number;
+}
+
+export interface Quote {
+  id: string;
+  number: string;
+  title: string;
+  client_name: string;
+  status: QuoteStatus;
+  created_at: string;
+  valid_until: string;
+  items: QuoteLineItem[];
+  discount_percent: number;
+  notes?: string;
+  total_net: number;
+  total_vat: number;
+  total_gross: number;
+  currency: 'PLN' | 'EUR' | 'USD';
+}
+
 export interface Notification {
   id: string;
   employee_id: string;
