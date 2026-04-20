@@ -23,6 +23,7 @@ import {
   Zap,
   BotMessageSquare,
   Mail,
+  Video,
 } from 'lucide-react';
 
 interface NavItem {
@@ -61,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Operacje',
     items: [
       { href: '/operations/agent', icon: BotMessageSquare, label: 'Agent AI' },
+      { href: '/operations/meetings', icon: Video, label: 'Spotkania' },
       { href: '/operations/mail', icon: Mail, label: 'Mail' },
       { href: '/operations/documents', icon: FileText, label: 'Dokumenty (WIP)' },
       { href: '/marketing', icon: Megaphone, label: 'Marketing (WIP)' },

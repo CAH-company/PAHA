@@ -5,7 +5,7 @@ import {
   Plus, Search, MoreHorizontal, Eye, Copy, Trash2,
   X, FileText, Package, Clock, CheckCircle2,
   XCircle, AlertCircle, TrendingUp, Send, FileDown,
-  Sparkles, ChevronDown, ChevronUp, Pencil,
+  Sparkles, ChevronDown, ChevronUp, Pencil, BookOpen, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { Quote, QuoteLineItem, QuoteStatus } from '@/types';
+import { useQuotes } from '@/hooks/useQuotes';
+import { useServices, type Service } from '@/hooks/useServices';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -661,10 +663,168 @@ function QuotePreviewPanel({ quote, onClose, onEdit, onStatusChange }: {
   );
 }
 
+// ─── Services Catalog Tab ─────────────────────────────────────────────────────
+
+const UNIT_LABELS: Record<string, string> = {
+  szt: 'szt.', godz: 'godz.', mies: 'mies.', projekt: 'projekt', 'dzień': 'dzień',
+};
+
+function ServicesCatalog() {
+  const { services, loading, createService, updateService, deleteService } = useServices();
+  const [editing, setEditing] = useState<Service | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState<Partial<Service>>({
+    name: '', unit: 'projekt', unit_price_net: 0, vat_rate: 23, description: '',
+  });
+
+  function openAdd() {
+    setForm({ name: '', unit: 'projekt', unit_price_net: 0, vat_rate: 23, description: '' });
+    setAdding(true);
+    setEditing(null);
+  }
+
+  function openEdit(s: Service) {
+    setForm({ name: s.name, unit: s.unit, unit_price_net: s.unit_price_net, vat_rate: s.vat_rate, description: s.description });
+    setEditing(s);
+    setAdding(false);
+  }
+
+  async function handleSubmit() {
+    if (!form.name || !form.unit_price_net) return;
+    if (editing) {
+      await updateService(editing.id, form);
+      setEditing(null);
+    } else {
+      await createService(form as any);
+      setAdding(false);
+    }
+  }
+
+  const isOpen = adding || !!editing;
+
+  return (
+    <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className="flex items-center justify-between mb-4 mt-4">
+        <div>
+          <p className="text-sm font-semibold text-text-primary">Katalog usług</p>
+          <p className="text-xs text-text-muted mt-0.5">Wewnętrzny cennik — używany przy tworzeniu ofert</p>
+        </div>
+        <Button variant="primary" size="sm" onClick={openAdd}>
+          <Plus size={14} /> Dodaj usługę
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 size={20} className="animate-spin text-text-muted" />
+        </div>
+      ) : (
+        <div className="bg-bg-base border border-border rounded-xl overflow-hidden">
+          <div className="grid text-[11px] font-semibold text-text-muted uppercase tracking-wide px-4 py-2.5 bg-bg-subtle border-b border-border"
+            style={{ gridTemplateColumns: '1fr 120px 80px 80px 90px 64px' }}>
+            <span>Nazwa</span>
+            <span>Opis</span>
+            <span className="text-right">Cena netto</span>
+            <span className="text-center">VAT</span>
+            <span>Jednostka</span>
+            <span />
+          </div>
+          {services.length === 0 ? (
+            <div className="py-12 text-center">
+              <BookOpen size={28} className="text-text-muted mx-auto mb-2" />
+              <p className="text-sm text-text-secondary">Brak usług w katalogu</p>
+            </div>
+          ) : services.map(s => (
+            <div key={s.id}
+              className="grid items-center px-4 py-3 border-b border-border/60 last:border-0 hover:bg-bg-subtle group transition-colors"
+              style={{ gridTemplateColumns: '1fr 120px 80px 80px 90px 64px' }}
+            >
+              <span className="text-sm font-medium text-text-primary">{s.name}</span>
+              <span className="text-xs text-text-muted truncate pr-2">{s.description ?? '—'}</span>
+              <span className="text-sm font-semibold text-text-primary text-right">
+                {new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2 }).format(s.unit_price_net)} zł
+              </span>
+              <span className="text-xs text-text-secondary text-center">{s.vat_rate}%</span>
+              <span className="text-xs text-text-muted">{UNIT_LABELS[s.unit] ?? s.unit}</span>
+              <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEdit(s)}
+                  className="p-1.5 rounded-md hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors">
+                  <Pencil size={12} />
+                </button>
+                <button onClick={() => deleteService(s.id)}
+                  className="p-1.5 rounded-md hover:bg-red-50 text-text-muted hover:text-red-500 transition-colors">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add/Edit modal */}
+      <Modal open={isOpen} onClose={() => { setAdding(false); setEditing(null); }}
+        title={editing ? 'Edytuj usługę' : 'Nowa usługa'}>
+        <div className="space-y-3 p-4">
+          <Input
+            label="Nazwa usługi"
+            value={form.name ?? ''}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="np. Konsultacje, Wdrożenie CRM"
+          />
+          <Input
+            label="Opis (opcjonalny)"
+            value={form.description ?? ''}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Krótki opis zakresu usługi"
+          />
+          <div className="grid grid-cols-3 gap-3">
+            <Input
+              label="Cena netto (PLN)"
+              type="number"
+              value={form.unit_price_net ?? ''}
+              onChange={e => setForm(f => ({ ...f, unit_price_net: parseFloat(e.target.value) || 0 }))}
+            />
+            <Select
+              label="Jednostka"
+              value={form.unit ?? 'projekt'}
+              onChange={e => setForm(f => ({ ...f, unit: (e.target as HTMLSelectElement).value as Service['unit'] }))}
+              options={[
+                { value: 'szt', label: 'szt.' },
+                { value: 'godz', label: 'godz.' },
+                { value: 'mies', label: 'mies.' },
+                { value: 'projekt', label: 'projekt' },
+                { value: 'dzień', label: 'dzień' },
+              ]}
+            />
+            <Select
+              label="VAT"
+              value={String(form.vat_rate ?? 23)}
+              onChange={e => setForm(f => ({ ...f, vat_rate: parseInt((e.target as HTMLSelectElement).value) }))}
+              options={[
+                { value: '0', label: '0%' },
+                { value: '5', label: '5%' },
+                { value: '8', label: '8%' },
+                { value: '23', label: '23%' },
+              ]}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="ghost" onClick={() => { setAdding(false); setEditing(null); }}>Anuluj</Button>
+            <Button variant="primary" onClick={handleSubmit}>
+              {editing ? 'Zapisz' : 'Dodaj'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function QuotesPage() {
-  const [quotes, setQuotes] = useState<Quote[]>(MOCK_QUOTES);
+  const [activeTab, setActiveTab] = useState<'quotes' | 'catalog'>('quotes');
+  const { quotes, loading: quotesLoading, saveQuote, deleteQuote, updateStatus, setQuotes } = useQuotes();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<QuoteStatus | 'all'>('all');
   const [selected, setSelected] = useState<Quote | null>(null);
@@ -689,21 +849,18 @@ export default function QuotesPage() {
     totalValue: quotes.filter(q => q.status === 'accepted').reduce((s, q) => s + q.total_net, 0),
   }), [quotes]);
 
-  const handleSave = useCallback((quote: Quote) => {
-    setQuotes(prev => {
-      const exists = prev.find(q => q.id === quote.id);
-      return exists ? prev.map(q => q.id === quote.id ? quote : q) : [quote, ...prev];
-    });
-    setSelected(quote);
-  }, []);
+  const handleSave = useCallback(async (quote: Quote) => {
+    const saved = await saveQuote(quote);
+    setSelected(saved);
+  }, [saveQuote]);
 
-  const handleDelete = useCallback((id: string) => {
-    setQuotes(prev => prev.filter(q => q.id !== id));
+  const handleDelete = useCallback(async (id: string) => {
+    await deleteQuote(id);
     if (selected?.id === id) setSelected(null);
     setMenuOpen(null);
-  }, [selected]);
+  }, [selected, deleteQuote]);
 
-  const handleDuplicate = useCallback((quote: Quote) => {
+  const handleDuplicate = useCallback(async (quote: Quote) => {
     const dup: Quote = {
       ...quote,
       id: generateId(),
@@ -711,14 +868,14 @@ export default function QuotesPage() {
       status: 'draft',
       created_at: today(),
     };
-    setQuotes(prev => [dup, ...prev]);
+    await saveQuote(dup);
     setMenuOpen(null);
-  }, [quotes]);
+  }, [quotes, saveQuote]);
 
-  const handleStatusChange = useCallback((id: string, status: QuoteStatus) => {
-    setQuotes(prev => prev.map(q => q.id === id ? { ...q, status } : q));
+  const handleStatusChange = useCallback(async (id: string, status: QuoteStatus) => {
+    await updateStatus(id, status);
     setSelected(prev => prev?.id === id ? { ...prev, status } : prev);
-  }, []);
+  }, [updateStatus]);
 
   const openEdit = (quote: Quote) => {
     setEditTarget(quote);
@@ -733,15 +890,40 @@ export default function QuotesPage() {
 
         {/* Header */}
         <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-bg-base flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold text-text-primary">Oferty</h1>
-            <p className="text-xs text-text-muted mt-0.5">Narzędzie do wycen i ofertowania</p>
+          <div className="flex items-center gap-1 bg-bg-subtle border border-border rounded-lg p-0.5">
+            <button
+              onClick={() => setActiveTab('quotes')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                activeTab === 'quotes'
+                  ? 'bg-bg-base text-text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <FileText size={14} /> Oferty
+            </button>
+            <button
+              onClick={() => setActiveTab('catalog')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                activeTab === 'catalog'
+                  ? 'bg-bg-base text-text-primary shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <BookOpen size={14} /> Katalog usług
+            </button>
           </div>
-          <Button variant="primary" onClick={() => { setEditTarget(null); setBuilderOpen(true); }}>
-            <Plus size={15} /> Nowa oferta
-          </Button>
+          {activeTab === 'quotes' && (
+            <Button variant="primary" onClick={() => { setEditTarget(null); setBuilderOpen(true); }}>
+              <Plus size={15} /> Nowa oferta
+            </Button>
+          )}
         </div>
 
+        {activeTab === 'catalog' && <ServicesCatalog />}
+
+        {activeTab === 'quotes' && <>
         {/* Stats */}
         <div className="flex-shrink-0 px-6 py-4 grid grid-cols-5 gap-3">
           <StatCard label="Wszystkie oferty" value={stats.total} icon={FileText} color="#6366f1" />
@@ -866,10 +1048,11 @@ export default function QuotesPage() {
             )}
           </div>
         </div>
+      </>}
       </div>
 
       {/* Preview panel */}
-      {selected && (
+      {selected && activeTab === 'quotes' && (
         <div className="w-80 flex-shrink-0 overflow-hidden">
           <QuotePreviewPanel
             quote={selected}
