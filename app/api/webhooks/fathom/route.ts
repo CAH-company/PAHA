@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const runtime = 'nodejs';
 
@@ -87,31 +88,11 @@ function extractFromPayload(payload: any): {
   };
 }
 
-async function processWithHaiku(meetingId: string, transcript: string, participants: string[]) {
-  const supabase = createServiceClient();
-
-  await supabase
-    .from('meeting_transcripts')
-    .update({ status: 'processing' })
-    .eq('id', meetingId);
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    await supabase.from('meeting_transcripts').update({
-      status: 'error',
-      error_message: 'Brak klucza Anthropic API',
-    }).eq('id', meetingId);
-    return;
-  }
-
-  try {
-    const client = new Anthropic({ apiKey });
-
-    const participantList = participants.length > 0
-      ? `Uczestnicy spotkania: ${participants.join(', ')}.`
-      : '';
-
-    const prompt = `${participantList}
+function buildPrompt(participants: string[], transcript: string) {
+  const participantList = participants.length > 0
+    ? `Uczestnicy spotkania: ${participants.join(', ')}.`
+    : '';
+  return `${participantList}
 
 Przeanalizuj poniższą transkrypcję spotkania i wyodrębnij wszystkie zadania, ustalenia i działania do wykonania.
 
@@ -132,14 +113,49 @@ Zwróć TYLKO JSON bez dodatkowego tekstu:
 Transkrypcja:
 ---
 ${transcript.slice(0, 150000)}`;
+}
 
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
+async function getAiSettings() {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from('app_settings')
+    .select('key, value')
+    .in('key', ['ai_provider', 'anthropic_api_key', 'anthropic_model', 'gemini_api_key', 'gemini_model']);
+  const map: Record<string, string> = {};
+  for (const row of data ?? []) map[row.key] = row.value ?? '';
+  return map;
+}
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+async function processWithAI(meetingId: string, transcript: string, participants: string[]) {
+  const supabase = createServiceClient();
+
+  await supabase.from('meeting_transcripts').update({ status: 'processing' }).eq('id', meetingId);
+
+  try {
+    const settings = await getAiSettings();
+    const provider = settings.ai_provider || 'anthropic';
+    const prompt = buildPrompt(participants, transcript);
+    let text = '';
+
+    if (provider === 'gemini') {
+      const apiKey = settings.gemini_api_key || process.env.GEMINI_API_KEY || '';
+      if (!apiKey) throw new Error('Brak klucza Gemini API');
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: settings.gemini_model || 'gemini-2.0-flash' });
+      const result = await model.generateContent(prompt);
+      text = result.response.text();
+    } else {
+      const apiKey = settings.anthropic_api_key || process.env.ANTHROPIC_API_KEY || '';
+      if (!apiKey) throw new Error('Brak klucza Anthropic API');
+      const client = new Anthropic({ apiKey });
+      const response = await client.messages.create({
+        model: settings.anthropic_model || 'claude-haiku-4-5-20251001',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      text = response.content[0].type === 'text' ? response.content[0].text : '';
+    }
+
     const jsonText = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
     const parsed = JSON.parse(jsonText);
 
@@ -208,7 +224,7 @@ export async function POST(req: NextRequest) {
 
   // Fire and forget — Fathom dostaje 200 natychmiast, Haiku przetwarza w tle
   if (transcript.length > 100) {
-    processWithHaiku(meeting.id, transcript, participants).catch(console.error);
+    processWithAI(meeting.id, transcript, participants).catch(console.error);
   }
 
   return NextResponse.json({ ok: true, id: meeting.id });

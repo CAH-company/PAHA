@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Check, Zap, Mail, Bell, Link2, Shield, Settings, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Eye, EyeOff, Check, Zap, Mail, Bell, Link2, Shield,
+  Settings, Loader2, Building2, Copy, RefreshCw, KeyRound,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 const SIDEBAR_ITEMS = [
-  { id: 'general', label: 'Ogólne', icon: Settings },
+  { id: 'general', label: 'Firma', icon: Building2 },
   { id: 'email', label: 'Email (Resend)', icon: Mail },
   { id: 'notifications', label: 'Powiadomienia', icon: Bell },
   { id: 'ai', label: 'AI Agent', icon: Zap },
@@ -16,124 +19,565 @@ const SIDEBAR_ITEMS = [
   { id: 'security', label: 'Bezpieczeństwo', icon: Shield },
 ];
 
-function SecretInput({ label, description }: { label: string; description?: string }) {
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function useSetting(keys: string[]) {
+  const [data, setData] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/settings?keys=${keys.join(',')}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { data, setData, loading };
+}
+
+async function saveSettings(entries: { key: string; value: string; is_secret?: boolean; label?: string }[]) {
+  const res = await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(entries),
+  });
+  return res.ok;
+}
+
+function SaveRow({ onSave, saving, saved, error }: {
+  onSave: () => void; saving: boolean; saved: boolean; error?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 pt-2">
+      <Button variant="primary" onClick={onSave} disabled={saving}>
+        {saving ? <><Loader2 size={13} className="animate-spin" /> Zapisywanie...</> : 'Zapisz'}
+      </Button>
+      {saved && (
+        <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+          <Check size={13} /> Zapisano
+        </span>
+      )}
+      {error && <span className="text-xs text-red-500">{error}</span>}
+    </div>
+  );
+}
+
+function SecretField({ label, description, value, onChange }: {
+  label: string; description?: string; value: string; onChange: (v: string) => void;
+}) {
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1">
       <label className="text-sm font-medium text-text-secondary">{label}</label>
       {description && <p className="text-xs text-text-muted">{description}</p>}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <input type={show ? 'text' : 'password'} placeholder="••••••••••••••••••••"
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10" />
-          <button onClick={() => setShow(!show)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
-            {show ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
-        </div>
-        <Button variant="primary" size="md">Zapisz</Button>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="••••••••••••••••••••"
+          className="w-full border border-border rounded-md px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
+        />
+        <button onClick={() => setShow(!show)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
+          {show ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
       </div>
     </div>
   );
 }
 
-function AISection() {
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('claude-sonnet-4-6');
-  const [show, setShow] = useState(false);
-  const [loading, setLoading] = useState(true);
+function ReadonlyUrl({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  return (
+    <div className="space-y-1">
+      <label className="text-sm font-medium text-text-secondary">{label}</label>
+      <div className="flex gap-2">
+        <input readOnly value={url}
+          className="flex-1 border border-border rounded-md px-3 py-2 text-sm bg-bg-muted text-text-muted font-mono" />
+        <Button variant="outline" size="sm" onClick={copy}>
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── sections ─────────────────────────────────────────────────────────────────
+
+function GeneralSection() {
+  const KEYS = ['company_name', 'company_nip', 'company_address', 'company_phone', 'company_website', 'timezone', 'currency'];
+  const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetch('/api/settings?keys=anthropic_api_key,anthropic_model')
-      .then(r => r.json())
-      .then(data => {
-        setApiKey(data.anthropic_api_key ?? '');
-        setModel(data.anthropic_model ?? 'claude-sonnet-4-6');
-        setLoading(false);
-      });
-  }, []);
+  function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
 
   async function save() {
     setSaving(true);
     setError('');
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([
-        { key: 'anthropic_api_key', value: apiKey, is_secret: true, label: 'Anthropic API Key' },
-        { key: 'anthropic_model', value: model, is_secret: false, label: 'Model Claude' },
-      ]),
-    });
+    const ok = await saveSettings([
+      { key: 'company_name', value: data.company_name ?? '', label: 'Nazwa firmy' },
+      { key: 'company_nip', value: data.company_nip ?? '', label: 'NIP' },
+      { key: 'company_address', value: data.company_address ?? '', label: 'Adres' },
+      { key: 'company_phone', value: data.company_phone ?? '', label: 'Telefon' },
+      { key: 'company_website', value: data.company_website ?? '', label: 'Strona WWW' },
+      { key: 'timezone', value: data.timezone ?? 'Europe/Warsaw', label: 'Strefa czasowa' },
+      { key: 'currency', value: data.currency ?? 'PLN', label: 'Waluta' },
+    ]);
     setSaving(false);
-    if (res.ok) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } else {
-      const data = await res.json();
-      setError(data.error ?? 'Błąd zapisu');
-    }
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else setError('Błąd zapisu');
   }
 
-  if (loading) return (
-    <div className="flex items-center gap-2 text-text-muted text-sm py-8">
-      <Loader2 size={14} className="animate-spin" /> Ładowanie...
-    </div>
-  );
+  if (loading) return <div className="flex items-center gap-2 text-text-muted text-sm py-8"><Loader2 size={14} className="animate-spin" /> Ładowanie...</div>;
 
   return (
     <>
-      <h2 className="text-base font-semibold text-text-primary">AI Agent — Anthropic</h2>
-      <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
-        Klucz API jest przechowywany w bazie danych projektu (Supabase). Nie jest widoczny publicznie.
-      </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-text-secondary">Anthropic API Key</label>
-        <p className="text-xs text-text-muted">Klucz z console.anthropic.com</p>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <input
-              type={show ? 'text' : 'password'}
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="sk-ant-..."
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 pr-10"
-            />
-            <button onClick={() => setShow(!show)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
-              {show ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
-          </div>
+      <h2 className="text-base font-semibold text-text-primary">Profil firmy</h2>
+      <p className="text-xs text-text-muted -mt-4">Te dane są wspólne dla całego zespołu i pojawiają się np. na ofertach i fakturach.</p>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="col-span-2">
+          <Input label="Nazwa firmy" value={data.company_name ?? ''} onChange={e => set('company_name', e.target.value)} placeholder="Acme Sp. z o.o." />
+        </div>
+        <Input label="NIP" value={data.company_nip ?? ''} onChange={e => set('company_nip', e.target.value)} placeholder="0000000000" />
+        <Input label="Telefon" value={data.company_phone ?? ''} onChange={e => set('company_phone', e.target.value)} placeholder="+48 000 000 000" />
+        <div className="col-span-2">
+          <Input label="Adres" value={data.company_address ?? ''} onChange={e => set('company_address', e.target.value)} placeholder="ul. Przykładowa 1, 00-000 Warszawa" />
+        </div>
+        <div className="col-span-2">
+          <Input label="Strona WWW" value={data.company_website ?? ''} onChange={e => set('company_website', e.target.value)} placeholder="https://twojafirma.pl" />
         </div>
       </div>
+
+      <hr className="border-border" />
+
+      <div className="grid grid-cols-2 gap-4">
+        <Select label="Strefa czasowa" value={data.timezone ?? 'Europe/Warsaw'}
+          options={[{ value: 'Europe/Warsaw', label: 'Europe/Warsaw (UTC+1/+2)' }]}
+          onChange={e => set('timezone', (e.target as HTMLSelectElement).value)} />
+        <Select label="Domyślna waluta" value={data.currency ?? 'PLN'}
+          options={[
+            { value: 'PLN', label: 'PLN — Złoty' },
+            { value: 'EUR', label: 'EUR — Euro' },
+            { value: 'USD', label: 'USD — Dolar' },
+          ]}
+          onChange={e => set('currency', (e.target as HTMLSelectElement).value)} />
+      </div>
+
+      <SaveRow onSave={save} saving={saving} saved={saved} error={error} />
+    </>
+  );
+}
+
+function AISection() {
+  const KEYS = ['ai_provider', 'anthropic_api_key', 'anthropic_model', 'gemini_api_key', 'gemini_model'];
+  const { data, setData, loading } = useSetting(KEYS);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
+
+  const provider = data.ai_provider ?? 'anthropic';
+
+  async function save() {
+    setSaving(true);
+    setError('');
+    const ok = await saveSettings([
+      { key: 'ai_provider', value: provider, label: 'Dostawca AI' },
+      { key: 'anthropic_api_key', value: data.anthropic_api_key ?? '', is_secret: true, label: 'Anthropic API Key' },
+      { key: 'anthropic_model', value: data.anthropic_model ?? 'claude-haiku-4-5-20251001', label: 'Model Anthropic' },
+      { key: 'gemini_api_key', value: data.gemini_api_key ?? '', is_secret: true, label: 'Gemini API Key' },
+      { key: 'gemini_model', value: data.gemini_model ?? 'gemini-2.0-flash', label: 'Model Gemini' },
+    ]);
+    setSaving(false);
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else setError('Błąd zapisu');
+  }
+
+  if (loading) return <div className="flex items-center gap-2 text-text-muted text-sm py-8"><Loader2 size={14} className="animate-spin" /> Ładowanie...</div>;
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-text-primary">AI Agent</h2>
+      <p className="text-xs text-text-muted -mt-4">
+        Wybierz dostawcę AI do przetwarzania transkrypcji spotkań i automatycznych zadań.
+      </p>
+
       <Select
-        label="Model"
-        value={model}
+        label="Dostawca AI"
+        value={provider}
         options={[
-          { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (zalecany)' },
-          { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 (najlepszy, wolniejszy)' },
-          { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (najszybszy, tańszy)' },
+          { value: 'anthropic', label: 'Anthropic (Claude) — płatny' },
+          { value: 'gemini', label: 'Google Gemini — darmowy tier (1500 req/dzień)' },
         ]}
-        onChange={e => setModel(e.target.value)}
+        onChange={e => set('ai_provider', (e.target as HTMLSelectElement).value)}
       />
-      {error && (
-        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+
+      {provider === 'anthropic' && (
+        <>
+          <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
+            Klucz z <strong>console.anthropic.com</strong>. Claude Haiku to najtańsza opcja (~$0.25/1M tokenów).
+          </div>
+          <SecretField
+            label="Anthropic API Key"
+            description="Zaczyna się od sk-ant-..."
+            value={data.anthropic_api_key ?? ''}
+            onChange={v => set('anthropic_api_key', v)}
+          />
+          <Select
+            label="Model"
+            value={data.anthropic_model ?? 'claude-haiku-4-5-20251001'}
+            options={[
+              { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (najtańszy, zalecany)' },
+              { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (lepszy, droższy)' },
+            ]}
+            onChange={e => set('anthropic_model', (e.target as HTMLSelectElement).value)}
+          />
+        </>
       )}
-      <div className="flex items-center gap-3">
-        <Button variant="primary" onClick={save} disabled={saving || !apiKey}>
-          {saving ? <><Loader2 size={13} className="animate-spin" /> Zapisywanie...</> : 'Zapisz'}
-        </Button>
-        {saved && (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-600">
-            <Check size={13} /> Zapisano
-          </span>
-        )}
+
+      {provider === 'gemini' && (
+        <>
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
+            <strong>Darmowy tier:</strong> 15 req/min, 1500 req/dzień — wystarczy dla większości zespołów.
+            Klucz z <strong>aistudio.google.com</strong>.
+          </div>
+          <SecretField
+            label="Google AI Studio API Key"
+            description="Klucz z aistudio.google.com — darmowy"
+            value={data.gemini_api_key ?? ''}
+            onChange={v => set('gemini_api_key', v)}
+          />
+          <Select
+            label="Model"
+            value={data.gemini_model ?? 'gemini-2.0-flash'}
+            options={[
+              { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (zalecany, darmowy)' },
+              { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (darmowy)' },
+              { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (płatny, najlepszy)' },
+            ]}
+            onChange={e => set('gemini_model', (e.target as HTMLSelectElement).value)}
+          />
+        </>
+      )}
+
+      <SaveRow onSave={save} saving={saving} saved={saved} error={error} />
+    </>
+  );
+}
+
+function IntegrationsSection() {
+  const KEYS = ['phantombuster_api_key', 'fathom_webhook_secret', 'leads_webhook_secret'];
+  const { data, setData, loading } = useSetting(KEYS);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
+
+  async function saveKey(key: string, label: string, isSecret = true) {
+    setSaving(key);
+    setErrors(e => ({ ...e, [key]: '' }));
+    const ok = await saveSettings([{ key, value: data[key] ?? '', is_secret: isSecret, label }]);
+    setSaving(null);
+    if (ok) { setSaved(key); setTimeout(() => setSaved(null), 2500); }
+    else setErrors(e => ({ ...e, [key]: 'Błąd zapisu' }));
+  }
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://twoja-domena.vercel.app';
+
+  if (loading) return <div className="flex items-center gap-2 text-text-muted text-sm py-8"><Loader2 size={14} className="animate-spin" /> Ładowanie...</div>;
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-text-primary">Integracje</h2>
+
+      {/* PhantomBuster */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+            <Zap size={14} className="text-violet-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">PhantomBuster</p>
+            <p className="text-xs text-text-muted">Automatyczne pozyskiwanie leadów z LinkedIn i innych źródeł</p>
+          </div>
+        </div>
+        <SecretField
+          label="API Key"
+          description="Klucz z dashboard.phantombuster.com → Settings → API"
+          value={data.phantombuster_api_key ?? ''}
+          onChange={v => set('phantombuster_api_key', v)}
+        />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm"
+            disabled={saving === 'phantombuster_api_key'}
+            onClick={() => saveKey('phantombuster_api_key', 'PhantomBuster API Key')}>
+            {saving === 'phantombuster_api_key' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
+          </Button>
+          {saved === 'phantombuster_api_key' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
+          {errors.phantombuster_api_key && <span className="text-xs text-red-500">{errors.phantombuster_api_key}</span>}
+        </div>
+      </div>
+
+      {/* Fathom */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+            <Mail size={14} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">Fathom</p>
+            <p className="text-xs text-text-muted">Transkrypcje spotkań → automatyczne taski przez AI</p>
+          </div>
+        </div>
+        <ReadonlyUrl
+          label="Webhook URL — wklej w Fathom → Settings → Integrations"
+          url={`${origin}/api/webhooks/fathom`}
+        />
+        <SecretField
+          label="Webhook Secret (whsec_...)"
+          description="Skopiuj z panelu Fathom po dodaniu webhooka"
+          value={data.fathom_webhook_secret ?? ''}
+          onChange={v => set('fathom_webhook_secret', v)}
+        />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm"
+            disabled={saving === 'fathom_webhook_secret'}
+            onClick={() => saveKey('fathom_webhook_secret', 'Fathom Webhook Secret')}>
+            {saving === 'fathom_webhook_secret' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
+          </Button>
+          {saved === 'fathom_webhook_secret' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
+        </div>
+      </div>
+
+      {/* Leads webhook */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+            <Link2 size={14} className="text-orange-600" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">Leads Webhook</p>
+            <p className="text-xs text-text-muted">Przyjmuje leady z zewnętrznych formularzy, Clay, Lemlist, Typeform</p>
+          </div>
+        </div>
+        <ReadonlyUrl
+          label="Webhook URL — wklej w swoim narzędziu"
+          url={`${origin}/api/webhooks/lead`}
+        />
+        <SecretField
+          label="Sekret (opcjonalny)"
+          description="Jeśli ustawiony — wymagany w nagłówku x-api-key"
+          value={data.leads_webhook_secret ?? ''}
+          onChange={v => set('leads_webhook_secret', v)}
+        />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm"
+            disabled={saving === 'leads_webhook_secret'}
+            onClick={() => saveKey('leads_webhook_secret', 'Leads Webhook Secret')}>
+            {saving === 'leads_webhook_secret' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
+          </Button>
+          {saved === 'leads_webhook_secret' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
+        </div>
       </div>
     </>
   );
 }
+
+function SecuritySection() {
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function changePassword() {
+    if (newPwd !== confirmPwd) { setPwdMsg({ ok: false, text: 'Hasła się nie zgadzają' }); return; }
+    if (newPwd.length < 8) { setPwdMsg({ ok: false, text: 'Hasło musi mieć min. 8 znaków' }); return; }
+    setPwdSaving(true);
+    setPwdMsg(null);
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: currentPwd, new_password: newPwd }),
+    });
+    setPwdSaving(false);
+    if (res.ok) {
+      setPwdMsg({ ok: true, text: 'Hasło zmienione' });
+      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('');
+    } else {
+      const d = await res.json();
+      setPwdMsg({ ok: false, text: d.error ?? 'Błąd zmiany hasła' });
+    }
+  }
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-text-primary">Bezpieczeństwo</h2>
+
+      {/* Change password */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <KeyRound size={15} className="text-text-muted" />
+          <p className="text-sm font-semibold text-text-primary">Zmiana hasła</p>
+        </div>
+        <SecretField label="Obecne hasło" value={currentPwd} onChange={setCurrentPwd} />
+        <SecretField label="Nowe hasło" value={newPwd} onChange={setNewPwd} />
+        <SecretField label="Powtórz nowe hasło" value={confirmPwd} onChange={setConfirmPwd} />
+        {pwdMsg && (
+          <p className={cn('text-xs px-3 py-2 rounded-lg border', pwdMsg.ok
+            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+            : 'text-red-600 bg-red-50 border-red-200')}>
+            {pwdMsg.text}
+          </p>
+        )}
+        <Button variant="primary" onClick={changePassword} disabled={pwdSaving || !currentPwd || !newPwd}>
+          {pwdSaving ? <><Loader2 size={13} className="animate-spin" /> Zapisywanie...</> : 'Zmień hasło'}
+        </Button>
+      </div>
+
+      {/* Webhook secrets info */}
+      <div className="border border-border rounded-xl p-4 space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <Shield size={15} className="text-text-muted" />
+          <p className="text-sm font-semibold text-text-primary">Klucze webhooków</p>
+        </div>
+        <p className="text-xs text-text-muted">
+          Wszystkie klucze i sekrety webhooków konfigurujesz w zakładce{' '}
+          <strong className="text-text-secondary">Integracje</strong>.
+          Są przechowywane w zaszyfrowanej bazie Supabase i nie są dostępne publicznie.
+        </p>
+        <div className="mt-2 space-y-1.5">
+          {[
+            { name: 'Fathom Webhook Secret', key: 'fathom_webhook_secret' },
+            { name: 'Leads Webhook Secret', key: 'leads_webhook_secret' },
+            { name: 'PhantomBuster API Key', key: 'phantombuster_api_key' },
+            { name: 'Anthropic API Key', key: 'anthropic_api_key' },
+            { name: 'Gemini API Key', key: 'gemini_api_key' },
+          ].map(({ name }) => (
+            <div key={name} className="flex items-center justify-between text-xs">
+              <span className="text-text-secondary">{name}</span>
+              <span className="text-text-muted font-mono">••••••••</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EmailSection() {
+  const KEYS = ['resend_api_key', 'resend_from_email', 'resend_from_name', 'resend_reply_to'];
+  const { data, setData, loading } = useSetting(KEYS);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
+
+  async function save() {
+    setSaving(true);
+    const ok = await saveSettings([
+      { key: 'resend_api_key', value: data.resend_api_key ?? '', is_secret: true, label: 'Resend API Key' },
+      { key: 'resend_from_email', value: data.resend_from_email ?? '', label: 'Email nadawcy' },
+      { key: 'resend_from_name', value: data.resend_from_name ?? '', label: 'Nazwa nadawcy' },
+      { key: 'resend_reply_to', value: data.resend_reply_to ?? '', label: 'Reply-To' },
+    ]);
+    setSaving(false);
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else setError('Błąd zapisu');
+  }
+
+  if (loading) return <div className="flex items-center gap-2 text-text-muted text-sm py-8"><Loader2 size={14} className="animate-spin" /> Ładowanie...</div>;
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-text-primary">Email — Resend</h2>
+      <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
+        Resend służy do wysyłania emaili z aplikacji do klientów i powiadomień systemowych.
+      </div>
+      <SecretField
+        label="Resend API Key"
+        description="Klucz API z panelu resend.com"
+        value={data.resend_api_key ?? ''}
+        onChange={v => set('resend_api_key', v)}
+      />
+      <Input label="Email nadawcy" value={data.resend_from_email ?? ''}
+        onChange={e => set('resend_from_email', e.target.value)}
+        placeholder="hej@twojafirma.pl" />
+      <Input label="Nazwa nadawcy" value={data.resend_from_name ?? ''}
+        onChange={e => set('resend_from_name', e.target.value)}
+        placeholder="Jan Kowalski / Twoja Firma" />
+      <Input label="Reply-To email" value={data.resend_reply_to ?? ''}
+        onChange={e => set('resend_reply_to', e.target.value)}
+        placeholder="odpowiedzi@twojafirma.pl" />
+      <SaveRow onSave={save} saving={saving} saved={saved} error={error} />
+    </>
+  );
+}
+
+function NotificationsSection() {
+  const KEYS = ['slack_webhook_url', 'slack_channel'];
+  const { data, setData, loading } = useSetting(KEYS);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
+
+  async function save() {
+    setSaving(true);
+    const ok = await saveSettings([
+      { key: 'slack_webhook_url', value: data.slack_webhook_url ?? '', is_secret: true, label: 'Slack Webhook URL' },
+      { key: 'slack_channel', value: data.slack_channel ?? '', label: 'Kanał Slack' },
+    ]);
+    setSaving(false);
+    if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+  }
+
+  if (loading) return <div className="flex items-center gap-2 text-text-muted text-sm py-8"><Loader2 size={14} className="animate-spin" /> Ładowanie...</div>;
+
+  return (
+    <>
+      <h2 className="text-base font-semibold text-text-primary">Powiadomienia — Slack</h2>
+      <SecretField
+        label="Slack Webhook URL"
+        description="URL webhooka z konfiguracji Slack App"
+        value={data.slack_webhook_url ?? ''}
+        onChange={v => set('slack_webhook_url', v)}
+      />
+      <Input label="Nazwa kanału" value={data.slack_channel ?? ''}
+        onChange={e => set('slack_channel', e.target.value)}
+        placeholder="#automationhub-alerts" />
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-text-secondary">Które zdarzenia powiadamiać:</p>
+        {[
+          { label: 'Nowe przypisanie zadania', defaultChecked: true },
+          { label: 'Zadanie zbliżające się terminu', defaultChecked: true },
+          { label: 'Zmiana statusu leada', defaultChecked: true },
+          { label: 'Nowy koszt dodany', defaultChecked: false },
+        ].map(({ label, defaultChecked }) => (
+          <label key={label} className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" defaultChecked={defaultChecked} className="accent-indigo-500" />
+            <span className="text-sm text-text-primary">{label}</span>
+          </label>
+        ))}
+      </div>
+      <SaveRow onSave={save} saving={saving} saved={saved} />
+    </>
+  );
+}
+
+// ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const [section, setSection] = useState('general');
@@ -143,7 +587,6 @@ export default function SettingsPage() {
       <h1 className="text-xl font-bold text-text-primary">Ustawienia</h1>
 
       <div className="flex gap-6">
-        {/* Sidebar */}
         <div className="w-48 flex-shrink-0">
           <nav className="space-y-0.5">
             {SIDEBAR_ITEMS.map(({ id, label, icon: Icon }) => (
@@ -161,74 +604,13 @@ export default function SettingsPage() {
           </nav>
         </div>
 
-        {/* Content */}
         <div className="flex-1 bg-bg-base border border-border rounded-xl p-5 space-y-6">
-          {section === 'general' && (
-            <>
-              <h2 className="text-base font-semibold text-text-primary">Ogólne</h2>
-              <Input label="Nazwa aplikacji" defaultValue="AutomationHub" />
-              <Select label="Strefa czasowa" defaultValue="Europe/Warsaw"
-                options={[{ value: 'Europe/Warsaw', label: 'Europe/Warsaw (UTC+1/+2)' }]} />
-              <Select label="Domyślna waluta" defaultValue="PLN"
-                options={[{ value: 'PLN', label: 'PLN — Złoty polski' }, { value: 'EUR', label: 'EUR — Euro' }, { value: 'USD', label: 'USD — Dolar' }]} />
-              <Select label="Motyw domyślny" defaultValue="light"
-                options={[{ value: 'light', label: 'Jasny' }, { value: 'dark', label: 'Ciemny' }, { value: 'system', label: 'Systemowy' }]} />
-              <Button variant="primary">Zapisz ustawienia</Button>
-            </>
-          )}
-
-          {section === 'email' && (
-            <>
-              <h2 className="text-base font-semibold text-text-primary">Email — Resend</h2>
-              <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
-                ℹ️ Resend służy do wysyłania emaili bezpośrednio z aplikacji do klientów i powiadomień systemowych.
-              </div>
-              <SecretInput label="Resend API Key" description="Klucz API z panelu Resend" />
-              <Input label="Email nadawcy" placeholder="hej@twojafirma.pl" />
-              <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
-                <Check size={14} className="text-emerald-500" />
-                <span className="text-xs text-emerald-700">Domena zweryfikowana</span>
-              </div>
-              <Input label="Nazwa nadawcy" placeholder="Jan Kowalski / Twoja Firma" />
-              <Input label="Reply-To email" placeholder="odpowiedzi@twojafirma.pl" />
-              <Button variant="outline" size="sm">Wyślij testowy email</Button>
-            </>
-          )}
-
+          {section === 'general' && <GeneralSection />}
+          {section === 'email' && <EmailSection />}
+          {section === 'notifications' && <NotificationsSection />}
           {section === 'ai' && <AISection />}
-
-          {section === 'notifications' && (
-            <>
-              <h2 className="text-base font-semibold text-text-primary">Powiadomienia — Slack</h2>
-              <SecretInput label="Slack Webhook URL" description="URL webhooka z konfiguracji Slack App" />
-              <Input label="Nazwa kanału" placeholder="#automationhub-alerts" />
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-text-secondary">Które zdarzenia powiadamiać:</p>
-                {[
-                  { label: 'Nowe przypisanie zadania', defaultChecked: true },
-                  { label: 'Zadanie zbliżające się terminu', defaultChecked: true },
-                  { label: 'Zmiana statusu leada', defaultChecked: true },
-                  { label: 'Nowy koszt dodany', defaultChecked: false },
-                ].map(({ label, defaultChecked }) => (
-                  <label key={label} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" defaultChecked={defaultChecked} className="accent-indigo-500" />
-                    <span className="text-sm text-text-primary">{label}</span>
-                  </label>
-                ))}
-              </div>
-              <Button variant="primary">Zapisz</Button>
-            </>
-          )}
-
-          {(section === 'integrations' || section === 'security') && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-xl bg-bg-muted flex items-center justify-center mb-3">
-                {section === 'integrations' ? <Link2 size={20} className="text-text-muted" /> : <Shield size={20} className="text-text-muted" />}
-              </div>
-              <p className="text-sm font-medium text-text-primary">Wkrótce dostępne</p>
-              <p className="text-xs text-text-muted mt-1">Ta sekcja jest w przygotowaniu</p>
-            </div>
-          )}
+          {section === 'integrations' && <IntegrationsSection />}
+          {section === 'security' && <SecuritySection />}
         </div>
       </div>
     </div>
