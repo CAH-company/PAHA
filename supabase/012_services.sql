@@ -19,7 +19,7 @@ create table public.services (
 
 create trigger trg_services_updated_at
   before update on public.services
-  for each row execute function update_updated_at_column();
+  for each row execute function public.set_updated_at();
 
 alter table public.services enable row level security;
 create policy "services_all" on public.services for all using (true) with check (true);

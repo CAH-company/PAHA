@@ -44,7 +44,7 @@ create index idx_quote_items_quote_id on public.quote_line_items(quote_id);
 
 create trigger trg_quotes_updated_at
   before update on public.quotes
-  for each row execute function update_updated_at_column();
+  for each row execute function public.set_updated_at();
 
 alter table public.quotes enable row level security;
 alter table public.quote_line_items enable row level security;

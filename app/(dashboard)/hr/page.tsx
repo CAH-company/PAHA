@@ -107,6 +107,21 @@ export default function HRPage() {
     refetch();
   }
 
+  async function deleteEmployee() {
+    if (!editingEmployee) return;
+    if (!confirm('Na pewno usunąć tego pracownika? Operacja jest nieodwracalna — konto zostanie usunięte z systemu i z logowania.')) return;
+    setSaving(true);
+    const res = await fetch(`/api/employees/${editingEmployee}`, { method: 'DELETE' });
+    setSaving(false);
+    if (!res.ok) {
+      const json = await res.json();
+      alert(json.error ?? 'Błąd usuwania pracownika');
+      return;
+    }
+    setEditingEmployee(null);
+    refetch();
+  }
+
   function closeInvite() {
     setInviteOpen(false);
     setInviteForm({ name: '', email: '', role: 'employee', position: '' });
@@ -283,9 +298,14 @@ export default function HRPage() {
               </div>
             </div>
             <div className="flex justify-between px-5 py-4 border-t border-border bg-bg-subtle">
-              <Button variant="ghost" className="text-red-500 hover:text-red-600" onClick={deactivate} disabled={saving}>
-                Dezaktywuj konto
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" className="text-orange-500 hover:text-orange-600" onClick={deactivate} disabled={saving}>
+                  Dezaktywuj
+                </Button>
+                <Button variant="ghost" className="text-red-500 hover:text-red-600" onClick={deleteEmployee} disabled={saving}>
+                  Usuń konto
+                </Button>
+              </div>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setEditingEmployee(null)}>Anuluj</Button>
                 <Button variant="primary" onClick={savePerms} disabled={saving}>
