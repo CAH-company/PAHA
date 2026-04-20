@@ -23,7 +23,9 @@ function makeClient(account: any) {
     auth: { user: account.username, pass: account.password },
     logger: false,
     tls: { rejectUnauthorized: false },
-  });
+    socketTimeout: 8000,
+    connectionTimeout: 8000,
+  } as any);
 }
 
 // GET /api/mail/messages?account_id=&folder=INBOX&page=1&search=
@@ -54,10 +56,13 @@ export async function GET(req: NextRequest) {
 
     try {
       const mailbox = client.mailbox as any;
-      total = mailbox?.exists ?? 0;
+      // imapflow może zwrócić exists jako number lub undefined
+      total = typeof mailbox?.exists === 'number' ? mailbox.exists : (mailbox?.count ?? 0);
 
       if (total === 0) {
-        return NextResponse.json({ messages: [], total: 0, folder, page });
+        lock.release();
+        await client.logout();
+        return NextResponse.json({ messages: [], total: 0, folder, page, debug_mailbox: mailbox });
       }
 
       let uids: number[] = [];

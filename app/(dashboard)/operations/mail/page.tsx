@@ -442,7 +442,8 @@ export default function MailPage() {
   const [searchInput, setSearchInput] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [compose, setCompose] = useState<{ open: boolean; reply?: MessageDetail; forward?: MessageDetail }>({ open: false });
-  const [folder] = useState('INBOX');
+  const [folder, setFolder] = useState('INBOX');
+  const [folders, setFolders] = useState<string[]>([]);
 
   // Load accounts
   useEffect(() => {
@@ -453,6 +454,25 @@ export default function MailPage() {
         if (d.accounts?.length > 0) setSelectedAccount(d.accounts[0]);
       });
   }, []);
+
+  // Load folder list when account changes
+  useEffect(() => {
+    if (!selectedAccount) return;
+    fetch(`/api/mail/debug?account_id=${selectedAccount.id}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.folders) {
+          const paths = (d.folders as any[]).map((f: any) => f.path).filter(Boolean);
+          setFolders(paths);
+          // Jeśli INBOX ma 0 wiadomości i jest Gmail, auto-przełącz na All Mail
+          if (d.inbox?.exists === 0 && paths.some((p: string) => p.includes('All Mail'))) {
+            const allMail = paths.find((p: string) => p.includes('All Mail'));
+            if (allMail) setFolder(allMail);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [selectedAccount]);
 
   // Load messages when account or search changes
   const loadMessages = useCallback(async (account: EmailAccount, searchTerm = '') => {
@@ -541,12 +561,23 @@ export default function MailPage() {
         </div>
 
         {selectedAccount && (
-          <div className="px-4 py-3">
-            <button className="w-full flex items-center gap-2 px-2 py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium">
-              <Inbox size={14} />
-              <span>Skrzynka odbiorcza</span>
-              {unread > 0 && <span className="ml-auto text-[10px] bg-accent text-white rounded-full px-1.5 py-0.5 font-bold">{unread}</span>}
-            </button>
+          <div className="px-4 py-3 space-y-0.5 max-h-64 overflow-y-auto">
+            {(folders.length > 0 ? folders : ['INBOX']).map(f => (
+              <button
+                key={f}
+                onClick={() => setFolder(f)}
+                className={cn(
+                  'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-left',
+                  folder === f ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-bg-muted'
+                )}
+              >
+                <Inbox size={13} className="flex-shrink-0" />
+                <span className="truncate">{f.split('/').pop()}</span>
+                {f === folder && unread > 0 && (
+                  <span className="ml-auto text-[10px] bg-accent text-white rounded-full px-1.5 py-0.5 font-bold">{unread}</span>
+                )}
+              </button>
+            ))}
           </div>
         )}
 
