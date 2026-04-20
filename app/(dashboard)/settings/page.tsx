@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Eye, EyeOff, Check, Zap, Mail, Bell, Link2, Shield,
-  Settings, Loader2, Building2, Copy, RefreshCw, KeyRound,
+  Settings, Loader2, Building2, Copy, KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -178,7 +178,10 @@ function GeneralSection() {
 }
 
 function AISection() {
-  const KEYS = ['ai_provider', 'anthropic_api_key', 'anthropic_model', 'gemini_api_key', 'gemini_model'];
+  const KEYS = [
+    'anthropic_api_key', 'agent_model',
+    'automation_provider', 'automation_anthropic_model', 'gemini_api_key', 'gemini_model',
+  ];
   const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -186,15 +189,16 @@ function AISection() {
 
   function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
 
-  const provider = data.ai_provider ?? 'anthropic';
+  const automationProvider = data.automation_provider ?? 'anthropic';
 
   async function save() {
     setSaving(true);
     setError('');
     const ok = await saveSettings([
-      { key: 'ai_provider', value: provider, label: 'Dostawca AI' },
       { key: 'anthropic_api_key', value: data.anthropic_api_key ?? '', is_secret: true, label: 'Anthropic API Key' },
-      { key: 'anthropic_model', value: data.anthropic_model ?? 'claude-haiku-4-5-20251001', label: 'Model Anthropic' },
+      { key: 'agent_model', value: data.agent_model ?? 'claude-sonnet-4-6', label: 'Model Agenta AI' },
+      { key: 'automation_provider', value: automationProvider, label: 'Dostawca automatyzacji AI' },
+      { key: 'automation_anthropic_model', value: data.automation_anthropic_model ?? 'claude-haiku-4-5-20251001', label: 'Model Anthropic (automatyzacje)' },
       { key: 'gemini_api_key', value: data.gemini_api_key ?? '', is_secret: true, label: 'Gemini API Key' },
       { key: 'gemini_model', value: data.gemini_model ?? 'gemini-2.0-flash', label: 'Model Gemini' },
     ]);
@@ -208,67 +212,86 @@ function AISection() {
   return (
     <>
       <h2 className="text-base font-semibold text-text-primary">AI Agent</h2>
-      <p className="text-xs text-text-muted -mt-4">
-        Wybierz dostawcę AI do przetwarzania transkrypcji spotkań i automatycznych zadań.
-      </p>
 
-      <Select
-        label="Dostawca AI"
-        value={provider}
-        options={[
-          { value: 'anthropic', label: 'Anthropic (Claude) — płatny' },
-          { value: 'gemini', label: 'Google Gemini — darmowy tier (1500 req/dzień)' },
-        ]}
-        onChange={e => set('ai_provider', (e.target as HTMLSelectElement).value)}
-      />
+      {/* Agent AI — zawsze Anthropic */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-text-primary">Agent AI (Operacje)</p>
+          <p className="text-xs text-text-muted mt-0.5">Asystent w zakładce Operacje — zawsze korzysta z Claude.</p>
+        </div>
+        <SecretField
+          label="Anthropic API Key"
+          description="Klucz z console.anthropic.com (sk-ant-...)"
+          value={data.anthropic_api_key ?? ''}
+          onChange={v => set('anthropic_api_key', v)}
+        />
+        <Select
+          label="Model agenta"
+          value={data.agent_model ?? 'claude-sonnet-4-6'}
+          options={[
+            { value: 'claude-opus-4-7', label: 'Claude Opus 4.7 (najlepszy)' },
+            { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (zalecany)' },
+            { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (najtańszy)' },
+          ]}
+          onChange={e => set('agent_model', (e.target as HTMLSelectElement).value)}
+        />
+      </div>
 
-      {provider === 'anthropic' && (
-        <>
-          <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
-            Klucz z <strong>console.anthropic.com</strong>. Claude Haiku to najtańsza opcja (~$0.25/1M tokenów).
-          </div>
-          <SecretField
-            label="Anthropic API Key"
-            description="Zaczyna się od sk-ant-..."
-            value={data.anthropic_api_key ?? ''}
-            onChange={v => set('anthropic_api_key', v)}
-          />
+      {/* Automatyzacje AI — Anthropic lub Gemini */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-text-primary">Automatyzacje AI</p>
+          <p className="text-xs text-text-muted mt-0.5">
+            Do prostych zadań: wyciąganie tasków z transkrypcji, generowanie faktur AI.
+            Można użyć Gemini za darmo.
+          </p>
+        </div>
+
+        <Select
+          label="Dostawca"
+          value={automationProvider}
+          options={[
+            { value: 'anthropic', label: 'Anthropic (Claude) — ten sam klucz co Agent' },
+            { value: 'gemini', label: 'Google Gemini — darmowy (1500 req/dzień)' },
+          ]}
+          onChange={e => set('automation_provider', (e.target as HTMLSelectElement).value)}
+        />
+
+        {automationProvider === 'anthropic' && (
           <Select
-            label="Model"
-            value={data.anthropic_model ?? 'claude-haiku-4-5-20251001'}
+            label="Model (automatyzacje)"
+            value={data.automation_anthropic_model ?? 'claude-haiku-4-5-20251001'}
             options={[
               { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (najtańszy, zalecany)' },
-              { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (lepszy, droższy)' },
+              { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
             ]}
-            onChange={e => set('anthropic_model', (e.target as HTMLSelectElement).value)}
+            onChange={e => set('automation_anthropic_model', (e.target as HTMLSelectElement).value)}
           />
-        </>
-      )}
+        )}
 
-      {provider === 'gemini' && (
-        <>
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
-            <strong>Darmowy tier:</strong> 15 req/min, 1500 req/dzień — wystarczy dla większości zespołów.
-            Klucz z <strong>aistudio.google.com</strong>.
-          </div>
-          <SecretField
-            label="Google AI Studio API Key"
-            description="Klucz z aistudio.google.com — darmowy"
-            value={data.gemini_api_key ?? ''}
-            onChange={v => set('gemini_api_key', v)}
-          />
-          <Select
-            label="Model"
-            value={data.gemini_model ?? 'gemini-2.0-flash'}
-            options={[
-              { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (zalecany, darmowy)' },
-              { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (darmowy)' },
-              { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (płatny, najlepszy)' },
-            ]}
-            onChange={e => set('gemini_model', (e.target as HTMLSelectElement).value)}
-          />
-        </>
-      )}
+        {automationProvider === 'gemini' && (
+          <>
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">
+              Klucz z <strong>aistudio.google.com</strong> — darmowy, nie wymaga karty.
+            </div>
+            <SecretField
+              label="Google AI Studio API Key"
+              value={data.gemini_api_key ?? ''}
+              onChange={v => set('gemini_api_key', v)}
+            />
+            <Select
+              label="Model Gemini"
+              value={data.gemini_model ?? 'gemini-2.0-flash'}
+              options={[
+                { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (zalecany, darmowy)' },
+                { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (darmowy)' },
+                { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (płatny)' },
+              ]}
+              onChange={e => set('gemini_model', (e.target as HTMLSelectElement).value)}
+            />
+          </>
+        )}
+      </div>
 
       <SaveRow onSave={save} saving={saving} saved={saved} error={error} />
     </>
@@ -276,7 +299,7 @@ function AISection() {
 }
 
 function IntegrationsSection() {
-  const KEYS = ['phantombuster_api_key', 'fathom_webhook_secret', 'leads_webhook_secret'];
+  const KEYS = ['fathom_webhook_secret', 'leads_webhook_secret'];
   const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -300,34 +323,6 @@ function IntegrationsSection() {
   return (
     <>
       <h2 className="text-base font-semibold text-text-primary">Integracje</h2>
-
-      {/* PhantomBuster */}
-      <div className="border border-border rounded-xl p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-            <Zap size={14} className="text-violet-600" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-text-primary">PhantomBuster</p>
-            <p className="text-xs text-text-muted">Automatyczne pozyskiwanie leadów z LinkedIn i innych źródeł</p>
-          </div>
-        </div>
-        <SecretField
-          label="API Key"
-          description="Klucz z dashboard.phantombuster.com → Settings → API"
-          value={data.phantombuster_api_key ?? ''}
-          onChange={v => set('phantombuster_api_key', v)}
-        />
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm"
-            disabled={saving === 'phantombuster_api_key'}
-            onClick={() => saveKey('phantombuster_api_key', 'PhantomBuster API Key')}>
-            {saving === 'phantombuster_api_key' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
-          </Button>
-          {saved === 'phantombuster_api_key' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
-          {errors.phantombuster_api_key && <span className="text-xs text-red-500">{errors.phantombuster_api_key}</span>}
-        </div>
-      </div>
 
       {/* Fathom */}
       <div className="border border-border rounded-xl p-4 space-y-3">

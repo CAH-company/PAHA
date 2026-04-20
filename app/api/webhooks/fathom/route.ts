@@ -120,7 +120,7 @@ async function getAiSettings() {
   const { data } = await supabase
     .from('app_settings')
     .select('key, value')
-    .in('key', ['ai_provider', 'anthropic_api_key', 'anthropic_model', 'gemini_api_key', 'gemini_model']);
+    .in('key', ['automation_provider', 'anthropic_api_key', 'automation_anthropic_model', 'gemini_api_key', 'gemini_model']);
   const map: Record<string, string> = {};
   for (const row of data ?? []) map[row.key] = row.value ?? '';
   return map;
@@ -133,7 +133,7 @@ async function processWithAI(meetingId: string, transcript: string, participants
 
   try {
     const settings = await getAiSettings();
-    const provider = settings.ai_provider || 'anthropic';
+    const provider = settings.automation_provider || 'anthropic';
     const prompt = buildPrompt(participants, transcript);
     let text = '';
 
@@ -149,7 +149,7 @@ async function processWithAI(meetingId: string, transcript: string, participants
       if (!apiKey) throw new Error('Brak klucza Anthropic API');
       const client = new Anthropic({ apiKey });
       const response = await client.messages.create({
-        model: settings.anthropic_model || 'claude-haiku-4-5-20251001',
+        model: settings.automation_anthropic_model || 'claude-haiku-4-5-20251001',
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       });
