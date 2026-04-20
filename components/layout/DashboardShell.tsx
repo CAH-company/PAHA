@@ -6,6 +6,8 @@ import { Topbar } from '@/components/layout/Topbar';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { useUIStore } from '@/store/ui';
 import { cn } from '@/lib/utils';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 function ShellInner({ children }: { children: React.ReactNode }) {
   const { sidebarCollapsed } = useUIStore();
@@ -33,9 +35,22 @@ export function DashboardShell({
   user: User;
   children: React.ReactNode;
 }) {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 60_000,        // dane świeże przez 60s — brak refetchu przy nawigacji
+        gcTime: 5 * 60_000,       // cache trzymany 5 minut w pamięci
+        retry: 1,
+        refetchOnWindowFocus: false,
+      },
+    },
+  }));
+
   return (
-    <AuthProvider initialUser={user}>
-      <ShellInner>{children}</ShellInner>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider initialUser={user}>
+        <ShellInner>{children}</ShellInner>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

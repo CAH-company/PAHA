@@ -1,20 +1,22 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import type { Employee } from '@/types';
 
+async function fetchEmployees(): Promise<Employee[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from('employees').select('*').order('name', { ascending: true });
+  return (data ?? []) as unknown as Employee[];
+}
+
 export function useEmployees() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: employees = [], isLoading: loading } = useQuery({
+    queryKey: ['employees'],
+    queryFn: fetchEmployees,
+    staleTime: 5 * 60_000, // pracownicy rzadko się zmieniają — cache 5 min
+  });
 
-  const fetchEmployees = useCallback(async () => {
-    setLoading(true);
-    const supabase = createClient();
-    const { data: rows } = await supabase.from('employees').select('*').order('name', { ascending: true });
-    setEmployees((rows ?? []) as unknown as Employee[]);
-    setLoading(false);
-  }, []);
+  const queryClient = useQueryClient();
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ['employees'] });
 
-  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
-
-  return { employees, loading, refetch: fetchEmployees };
+  return { employees, loading, refetch };
 }

@@ -28,7 +28,7 @@ function makeClient(account: any) {
   } as any);
 }
 
-// GET /api/mail/messages?account_id=&folder=INBOX&page=1&search=
+// GET /api/mail/messages?account_id=&folder=INBOX&page=1&search=&include_folders=true
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   const folder = searchParams.get('folder') || 'INBOX';
   const search = searchParams.get('search') || '';
   const page = parseInt(searchParams.get('page') || '1', 10);
+  const includeFolders = searchParams.get('include_folders') === 'true';
   const perPage = 40;
 
   if (!accountId) return NextResponse.json({ error: 'missing account_id' }, { status: 400 });
@@ -50,6 +51,14 @@ export async function GET(req: NextRequest) {
 
   try {
     await client.connect();
+
+    // Pobierz foldery w tym samym połączeniu jeśli requested
+    let folders: string[] | undefined;
+    if (includeFolders) {
+      const folderList = await client.list();
+      folders = folderList.map((f: any) => f.path).filter(Boolean);
+    }
+
     const lock = await client.getMailboxLock(folder);
     const messages: any[] = [];
     let total = 0;
@@ -131,7 +140,7 @@ export async function GET(req: NextRequest) {
     }
 
     await client.logout();
-    return NextResponse.json({ messages, total, folder, page });
+    return NextResponse.json({ messages, total, folder, page, ...(folders ? { folders } : {}) });
   } catch (err: any) {
     console.error('[mail/messages]', err);
     try { await client.logout(); } catch {}

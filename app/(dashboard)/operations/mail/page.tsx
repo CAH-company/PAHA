@@ -455,39 +455,34 @@ export default function MailPage() {
       });
   }, []);
 
-  // Load folder list when account changes
-  useEffect(() => {
-    if (!selectedAccount) return;
-    fetch(`/api/mail/debug?account_id=${selectedAccount.id}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.folders) {
-          const paths = (d.folders as any[]).map((f: any) => f.path).filter(Boolean);
-          setFolders(paths);
-          // Jeśli INBOX ma 0 wiadomości i jest Gmail, auto-przełącz na All Mail
-          if (d.inbox?.exists === 0 && paths.some((p: string) => p.includes('All Mail'))) {
-            const allMail = paths.find((p: string) => p.includes('All Mail'));
-            if (allMail) setFolder(allMail);
-          }
-        }
-      })
-      .catch(() => {});
-  }, [selectedAccount]);
+  // Foldery ładowane razem z wiadomościami (jedno połączenie IMAP)
 
   // Load messages when account or search changes
-  const loadMessages = useCallback(async (account: EmailAccount, searchTerm = '') => {
+  const loadMessages = useCallback(async (account: EmailAccount, searchTerm = '', loadFolders = false) => {
     setLoading(true); setError(''); setSelectedMsg(null); setSelectedUid(null);
     const params = new URLSearchParams({ account_id: account.id, folder });
     if (searchTerm) params.set('search', searchTerm);
+    if (loadFolders) params.set('include_folders', 'true');
     const res = await fetch(`/api/mail/messages?${params}`);
     const json = await res.json();
     setLoading(false);
     if (!res.ok) { setError(json.message ?? 'Błąd wczytywania'); return; }
     setMessages(json.messages ?? []);
+    if (json.folders) {
+      setFolders(json.folders);
+      if (json.total === 0 && json.folders.some((p: string) => p.includes('All Mail'))) {
+        const allMail = json.folders.find((p: string) => p.includes('All Mail'));
+        if (allMail) setFolder(allMail);
+      }
+    }
   }, [folder]);
 
   useEffect(() => {
-    if (selectedAccount) loadMessages(selectedAccount, search);
+    if (selectedAccount) {
+      // Pierwsze ładowanie — pobierz też foldery razem z wiadomościami (1 połączenie IMAP)
+      const isFirstLoad = folders.length === 0;
+      loadMessages(selectedAccount, search, isFirstLoad);
+    }
   }, [selectedAccount, search, loadMessages]);
 
   async function openMessage(uid: number) {
