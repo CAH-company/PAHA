@@ -200,7 +200,7 @@ const MOCK_QUOTES: Quote[] = [
 ].map(q => {
   const { total_net, total_vat, total_gross } = calcTotals(q.items, q.discount_percent);
   return { ...q, total_net, total_vat, total_gross };
-});
+}) as Quote[];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
