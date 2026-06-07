@@ -2,34 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
-
-function applyVars(template: string, lead: { name?: string; company?: string; email?: string }) {
-  const firstName = (lead.name ?? '').split(' ')[0];
-  return template
-    .replace(/\{\{name\}\}/g, lead.name ?? '')
-    .replace(/\{\{first_name\}\}/g, firstName)
-    .replace(/\{\{company\}\}/g, lead.company ?? '')
-    .replace(/\{\{email\}\}/g, lead.email ?? '');
-}
-
-function buildHtml(body: string, recipientId: string, fromEmail: string, appUrl: string) {
-  const base = appUrl.replace(/\/$/, '');
-  const pixel = `<img src="${base}/api/email-campaigns/track?type=open&rid=${recipientId}" width="1" height="1" alt="" style="display:none" />`;
-  const replyUrl = `${base}/api/email-campaigns/track?type=reply&rid=${recipientId}`;
-  const unsubUrl = `${base}/api/email-campaigns/unsubscribe?rid=${recipientId}`;
-
-  const footer = `
-<br><br>
-<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
-<p style="font-size:12px;color:#94a3b8;margin:0">
-  <a href="${replyUrl}" style="color:#6366f1;text-decoration:none">Odpowiedz na tego emaila</a>
-  &nbsp;·&nbsp;
-  <a href="${unsubUrl}" style="color:#94a3b8;text-decoration:none">Wypisz mnie z tej listy</a>
-</p>
-${pixel}`;
-
-  return body.replace(/\n/g, '<br>') + footer;
-}
+import { applyVars, buildHtml, isInWindow } from '@/lib/email-campaign-utils';
 
 export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -80,15 +53,31 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
 
   const step1 = steps[0];
   const now = new Date();
+  const inWindow = isInWindow(campaign.send_window ?? null, now);
   let sentCount = 0;
 
   for (const rec of recipients ?? []) {
     const lead = validLeads.find((l: any) => l.id === rec.lead_id);
     if (!lead?.email) continue;
 
-    const subject = applyVars(step1.subject, lead);
+    const nextStep = steps[1];
+    const nextSendAt = nextStep
+      ? new Date(now.getTime() + nextStep.delay_days * 86400000).toISOString()
+      : null;
+
+    if (!inWindow) {
+      // Outside window — mark active but schedule first send for next process run
+      await admin.from('email_campaign_recipients').update({
+        status: 'active',
+        current_step: 0,
+        next_send_at: now.toISOString(),
+      }).eq('id', rec.id);
+      continue;
+    }
+
+    const subject  = applyVars(step1.subject, lead);
     const bodyText = applyVars(step1.body_html, lead);
-    const html = buildHtml(bodyText, rec.id, campaign.from_email, appUrl);
+    const html     = buildHtml(bodyText, rec.id, appUrl);
 
     let resendId: string | null = null;
     let sendStatus = 'sent';
@@ -109,11 +98,6 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     } else {
       console.log(`[DEV] Would send to ${lead.email}: ${subject}`);
     }
-
-    const nextStep = steps[1];
-    const nextSendAt = nextStep
-      ? new Date(now.getTime() + nextStep.delay_days * 86400000).toISOString()
-      : null;
 
     await admin.from('email_campaign_recipients').update({
       status: 'active',
@@ -147,5 +131,11 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     await admin.from('leads').update({ contact_status: 'in_sequence' }).in('id', leadIds);
   }
 
-  return NextResponse.json({ ok: true, sent: sentCount, total: validLeads.length });
+  const outsideWindow = !inWindow;
+  return NextResponse.json({
+    ok: true,
+    sent: sentCount,
+    total: validLeads.length,
+    ...(outsideWindow && { warning: 'Poza oknem wysyłki — emaile zostaną wysłane przy najbliższym uruchomieniu procesu w dozwolonych godzinach.' }),
+  });
 }

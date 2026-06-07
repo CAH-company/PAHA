@@ -219,6 +219,10 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [fromEmail, setFromEmail] = useState('');
   const [stopOnOpen, setStopOnOpen] = useState(false);
   const [stopOnReply, setStopOnReply] = useState(true);
+  const [windowEnabled, setWindowEnabled] = useState(false);
+  const [windowDays, setWindowDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [windowFrom, setWindowFrom] = useState('09:00');
+  const [windowTo, setWindowTo] = useState('17:00');
   const [steps, setSteps] = useState<DraftStep[]>([{ ...EMPTY_STEP, delay_days: 0 }]);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterValue, setFilterValue] = useState('');
@@ -226,6 +230,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const resetForm = () => {
     setWizardStep(0); setName(''); setFromName(''); setFromEmail('');
     setStopOnOpen(false); setStopOnReply(true);
+    setWindowEnabled(false); setWindowDays([1,2,3,4,5]); setWindowFrom('09:00'); setWindowTo('17:00');
     setSteps([{ ...EMPTY_STEP, delay_days: 0 }]);
     setFilterType('all'); setFilterValue(''); setError('');
   };
@@ -258,6 +263,9 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
         body: JSON.stringify({
           name, from_name: fromName, from_email: fromEmail,
           stop_on_open: stopOnOpen, stop_on_reply: stopOnReply,
+          send_window: windowEnabled
+            ? { days: windowDays, from: windowFrom, to: windowTo, tz: 'Europe/Warsaw' }
+            : null,
           recipient_filter: { type: filterType, value: filterValue || undefined },
           steps,
         }),
@@ -358,6 +366,72 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
                 </div>
                 <p className="text-[10px] text-text-muted mt-1.5">Każdy email zawiera też automatyczny link do wypisania się (wymóg RODO).</p>
               </div>
+
+              <div>
+                <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-2">Okno wysyłki</label>
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-border-strong cursor-pointer transition-colors mb-2">
+                  <input
+                    type="checkbox"
+                    checked={windowEnabled}
+                    onChange={e => setWindowEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-accent"
+                  />
+                  <span className="text-sm text-text-primary">Ogranicz godziny i dni wysyłki</span>
+                </label>
+                {windowEnabled && (
+                  <div className="p-3 border border-border rounded-xl space-y-3 bg-bg-subtle">
+                    <div>
+                      <p className="text-xs text-text-muted mb-2">Dni tygodnia</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[
+                          { d: 1, label: 'Pon' }, { d: 2, label: 'Wt' }, { d: 3, label: 'Śr' },
+                          { d: 4, label: 'Czw' }, { d: 5, label: 'Pt' }, { d: 6, label: 'Sob' }, { d: 0, label: 'Ndz' },
+                        ].map(({ d, label }) => {
+                          const active = windowDays.includes(d);
+                          return (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setWindowDays(prev =>
+                                active ? prev.filter(x => x !== d) : [...prev, d]
+                              )}
+                              className={cn(
+                                'px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+                                active
+                                  ? 'border-accent bg-accent text-white'
+                                  : 'border-border text-text-secondary hover:border-border-strong'
+                              )}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs text-text-muted block mb-1">Od godziny</label>
+                        <input
+                          type="time"
+                          value={windowFrom}
+                          onChange={e => setWindowFrom(e.target.value)}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs text-text-muted block mb-1">Do godziny</label>
+                        <input
+                          type="time"
+                          value={windowTo}
+                          onChange={e => setWindowTo(e.target.value)}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-text-muted">Strefa czasowa: Europa/Warszawa. Emaile wysyłane tylko w zaznaczonych dniach i podanych godzinach.</p>
+                  </div>
+                )}
+              </div>
+
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
                 <strong>Wskazówka:</strong> W Resend musisz zweryfikować domenę nadawcy, żeby emaile nie trafiały do spamu. Na czas testów możesz użyć <code>onboarding@resend.dev</code>.
               </div>
@@ -541,10 +615,19 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh }: {
                 </div>
               ))}
             </div>
-            {(campaign.stop_on_open || campaign.stop_on_reply) && (
+            {(campaign.stop_on_open || campaign.stop_on_reply || campaign.send_window) && (
               <div className="flex gap-2 flex-wrap">
                 {campaign.stop_on_open  && <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Stop po otwarciu</span>}
                 {campaign.stop_on_reply && <span className="text-xs px-2 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Stop po odpowiedzi</span>}
+                {campaign.send_window   && (() => {
+                  const DAY = ['Ndz','Pon','Wt','Śr','Czw','Pt','Sob'];
+                  const days = campaign.send_window.days.sort((a: number, b: number) => a - b).map((d: number) => DAY[d]).join(', ');
+                  return (
+                    <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                      {days} · {campaign.send_window.from}–{campaign.send_window.to}
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>

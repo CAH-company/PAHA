@@ -287,6 +287,13 @@ export interface EmailCampaignRecipient {
   created_at: string;
 }
 
+export interface SendWindow {
+  days: number[];  // 0=Ndz 1=Pon 2=Wt 3=Śr 4=Czw 5=Pt 6=Sob
+  from: string;    // "HH:MM"
+  to: string;      // "HH:MM"
+  tz: string;      // IANA, np. "Europe/Warsaw"
+}
+
 export interface EmailCampaign {
   id: string;
   name: string;
@@ -296,6 +303,7 @@ export interface EmailCampaign {
   recipient_filter: RecipientFilter;
   stop_on_open: boolean;
   stop_on_reply: boolean;
+  send_window: SendWindow | null;
   total_recipients: number;
   sent_count: number;
   delivered_count: number;
