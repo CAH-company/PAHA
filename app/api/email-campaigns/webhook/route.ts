@@ -29,10 +29,14 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
   const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
-  const { createHmac } = await import('crypto');
+  const { createHmac, timingSafeEqual } = await import('crypto');
   const computed = createHmac('sha256', secretBytes).update(signedContent).digest('base64');
+  const computedBuf = Buffer.from(computed, 'base64');
   const expectedSigs = svixSig.split(' ').map(s => s.replace(/^v1,/, ''));
-  const signatureValid = expectedSigs.some(sig => sig === computed);
+  const signatureValid = expectedSigs.some(sig => {
+    const sigBuf = Buffer.from(sig, 'base64');
+    return sigBuf.length === computedBuf.length && timingSafeEqual(sigBuf, computedBuf);
+  });
 
   if (!signatureValid) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
