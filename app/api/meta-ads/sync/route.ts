@@ -31,14 +31,12 @@ function extractConversions(actions: any[]): { conversions: number; conversionVa
 export async function POST(req: NextRequest) {
   const admin = createAdminClient();
 
-  // Auth: Vercel Cron sends CRON_SECRET, manual calls need service role
+  // Auth: Vercel Cron sends CRON_SECRET; every other call requires a logged-in user
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
-  const isManual = req.headers.get('x-manual-sync') === '1';
+  const isCron = !!(cronSecret && authHeader === `Bearer ${cronSecret}`);
 
-  if (!isCron && !isManual) {
-    // For manual syncs from the UI, verify the user is authenticated
+  if (!isCron) {
     const { createClient } = await import('@/lib/supabase/server');
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();

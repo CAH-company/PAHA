@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,19 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const { error } = await supabase
+  // Transkrypcje spotkań nie mają pola created_by — usuwać może tylko admin/partner
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('role')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!emp || !['admin', 'partner'].includes(emp.role)) {
+    return NextResponse.json({ error: 'Brak uprawnień — tylko admin może usuwać transkrypcje' }, { status: 403 });
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
     .from('meeting_transcripts')
     .delete()
     .eq('id', params.id);
