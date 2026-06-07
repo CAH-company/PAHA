@@ -7,11 +7,15 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { to, from_name, from_email, subject, body_html } = await req.json();
+  const { from_name, from_email, subject, body_html } = await req.json();
 
-  if (!to || !from_email || !subject || !body_html) {
+  if (!from_email || !subject || !body_html) {
     return NextResponse.json({ error: 'Brakuje wymaganych pól' }, { status: 400 });
   }
+
+  // Test wysyłamy TYLKO na email zalogowanego użytkownika — nie można używać jako relay
+  const to = user.email;
+  if (!to) return NextResponse.json({ error: 'Brak emaila użytkownika' }, { status: 400 });
 
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({ error: 'Brak RESEND_API_KEY — skonfiguruj Resend w ustawieniach lub zmiennych środowiskowych.' }, { status: 422 });

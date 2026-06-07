@@ -213,7 +213,6 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [wizardStep, setWizardStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [testEmail, setTestEmail] = useState('');
   const [testingIdx, setTestingIdx] = useState<number | null>(null);
   const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -238,11 +237,11 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
     const res = await fetch('/api/email-campaigns/test-send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: testEmail, from_name: fromName, from_email: fromEmail || 'onboarding@resend.dev', subject: step.subject, body_html: step.body_html }),
+      body: JSON.stringify({ from_name: fromName, from_email: fromEmail || 'onboarding@resend.dev', subject: step.subject, body_html: step.body_html }),
     });
     const data = await res.json();
     setTestingIdx(null);
-    setTestMsg(res.ok ? { ok: true, text: `Email wysłany na ${testEmail}` } : { ok: false, text: data.error ?? 'Błąd wysyłki' });
+    setTestMsg(res.ok ? { ok: true, text: 'Email testowy wysłany na Twój adres' } : { ok: false, text: data.error ?? 'Błąd wysyłki' });
     setTimeout(() => setTestMsg(null), 5000);
   };
 
@@ -464,16 +463,9 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
 
               {/* Test email bar */}
               <div className="flex items-center gap-2 p-3 bg-bg-subtle border border-border rounded-xl">
-                <span className="text-xs font-medium text-text-muted whitespace-nowrap">Wyślij testowy email na:</span>
-                <input
-                  value={testEmail}
-                  onChange={e => setTestEmail(e.target.value)}
-                  placeholder="twoj@email.com"
-                  type="email"
-                  className="flex-1 border border-border rounded-lg px-2.5 py-1.5 text-xs bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/40"
-                />
+                <span className="text-xs text-text-muted">Testowy email zostanie wysłany na Twój adres konta.</span>
                 {testMsg && (
-                  <span className={cn('text-xs px-2 py-1 rounded-lg whitespace-nowrap', testMsg.ok ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50')}>
+                  <span className={cn('ml-auto text-xs px-2 py-1 rounded-lg whitespace-nowrap flex-shrink-0', testMsg.ok ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50')}>
                     {testMsg.text}
                   </span>
                 )}
