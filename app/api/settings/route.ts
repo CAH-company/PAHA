@@ -8,6 +8,15 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Sprawdź rolę — sekrety dostępne tylko dla admin/partner
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('role')
+    .eq('user_id', user.id)
+    .single();
+
+  const isPrivileged = emp && ['admin', 'partner'].includes(emp.role);
+
   const keys = req.nextUrl.searchParams.get('keys')?.split(',') ?? [];
   if (keys.length === 0) return NextResponse.json({});
 
@@ -19,7 +28,12 @@ export async function GET(req: NextRequest) {
 
   const result: Record<string, string> = {};
   for (const row of data ?? []) {
-    result[row.key] = row.value ?? '';
+    // Sekrety (klucze API, tokeny) — tylko dla admin/partner
+    if (row.is_secret && !isPrivileged) {
+      result[row.key] = '';
+    } else {
+      result[row.key] = row.value ?? '';
+    }
   }
 
   return NextResponse.json(result);

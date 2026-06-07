@@ -12,20 +12,40 @@ const STATUS_PRIORITY: Record<string, number> = {
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
 
-  // Verify Resend webhook signature when secret is configured
-  if (secret) {
-    const svixId        = req.headers.get('svix-id');
-    const svixTimestamp = req.headers.get('svix-timestamp');
-    const svixSig       = req.headers.get('svix-signature');
-    if (!svixId || !svixTimestamp || !svixSig) {
-      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
-    }
-    // Full svix verification would require the svix package.
-    // For now we accept the event — add `npm i svix` and full verification before going live.
+  // Verify Resend webhook signature (svix HMAC)
+  if (!secret) {
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+  }
+
+  const svixId        = req.headers.get('svix-id')        ?? '';
+  const svixTimestamp = req.headers.get('svix-timestamp') ?? '';
+  const svixSig       = req.headers.get('svix-signature') ?? '';
+
+  if (!svixId || !svixTimestamp || !svixSig) {
+    return NextResponse.json({ error: 'Missing svix signature headers' }, { status: 401 });
+  }
+
+  // Cryptographic HMAC-SHA256 verification (svix format)
+  const rawBody = await req.text();
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
+  const { createHmac } = await import('crypto');
+  const computed = createHmac('sha256', secretBytes).update(signedContent).digest('base64');
+  const expectedSigs = svixSig.split(' ').map(s => s.replace(/^v1,/, ''));
+  const signatureValid = expectedSigs.some(sig => sig === computed);
+
+  if (!signatureValid) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
+  // Timestamp check — reject events older than 5 minutes
+  const ts = parseInt(svixTimestamp, 10);
+  if (Math.abs(Date.now() / 1000 - ts) > 300) {
+    return NextResponse.json({ error: 'Timestamp too old' }, { status: 401 });
   }
 
   let body: any;
-  try { body = await req.json(); } catch { return NextResponse.json({ error: 'Bad body' }, { status: 400 }); }
+  try { body = JSON.parse(rawBody); } catch { return NextResponse.json({ error: 'Bad body' }, { status: 400 }); }
 
   const eventType: string = body.type ?? '';
   const emailId: string   = body.data?.email_id ?? '';

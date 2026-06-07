@@ -73,18 +73,20 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient();
 
   const expectedKey = process.env.LEADS_WEBHOOK_SECRET ?? null;
-  if (!expectedKey) {
+  let resolvedKey = expectedKey;
+
+  if (!resolvedKey) {
     // Fallback: sprawdź w app_settings
     const { data: setting } = await supabase
       .from('app_settings')
       .select('value')
       .eq('key', 'leads_webhook_secret')
       .maybeSingle();
-    const dbKey = setting?.value ?? null;
-    if (dbKey && apiKey !== dbKey) {
-      return NextResponse.json({ error: 'invalid_api_key' }, { status: 401 });
-    }
-  } else if (apiKey && apiKey !== expectedKey) {
+    resolvedKey = setting?.value ?? null;
+  }
+
+  // Fail-closed: brak klucza = brak dostępu
+  if (!resolvedKey || apiKey !== resolvedKey) {
     return NextResponse.json({ error: 'invalid_api_key' }, { status: 401 });
   }
 

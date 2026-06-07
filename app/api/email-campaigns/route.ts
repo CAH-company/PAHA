@@ -8,9 +8,12 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = createAdminClient();
+  const { data: emp } = await admin.from('employees').select('id').eq('user_id', user.id).single();
+
   const { data, error } = await admin
     .from('email_campaigns')
     .select('*, steps:email_campaign_steps(*)')
+    .eq('created_by', emp?.id)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

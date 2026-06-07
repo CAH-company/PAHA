@@ -91,7 +91,14 @@ export async function GET(req: NextRequest) {
   }
 
   if (type === 'click' && url) {
-    return NextResponse.redirect(decodeURIComponent(url));
+    const decoded = decodeURIComponent(url);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+    // Pozwól tylko na bezwzględne URL-e zaczynające się od http/https
+    // i zablokuj javascript: oraz inne niebezpieczne schematy
+    if (!/^https?:\/\//i.test(decoded)) {
+      return NextResponse.redirect(appUrl || '/');
+    }
+    return NextResponse.redirect(decoded);
   }
 
   if (type === 'reply') {
