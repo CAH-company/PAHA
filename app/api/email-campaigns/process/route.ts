@@ -3,8 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 function applyVars(template: string, lead: { name?: string; company?: string; email?: string }) {
   const firstName = (lead.name ?? '').split(' ')[0];
   return template
@@ -67,6 +65,7 @@ export async function POST() {
     let sendStatus = 'sent';
 
     if (process.env.RESEND_API_KEY) {
+      const resend = new Resend(process.env.RESEND_API_KEY);
       try {
         const { data: r } = await resend.emails.send({
           from: `${campaign.from_name} <${campaign.from_email}>`,
