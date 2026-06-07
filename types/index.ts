@@ -294,9 +294,13 @@ export interface EmailCampaign {
   from_email: string;
   status: EmailCampaignStatus;
   recipient_filter: RecipientFilter;
+  stop_on_open: boolean;
+  stop_on_reply: boolean;
   total_recipients: number;
   sent_count: number;
+  delivered_count: number;
   opened_count: number;
+  clicked_count: number;
   replied_count: number;
   bounced_count: number;
   steps?: EmailCampaignStep[];

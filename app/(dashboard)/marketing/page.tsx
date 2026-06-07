@@ -217,12 +217,15 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [name, setName] = useState('');
   const [fromName, setFromName] = useState('');
   const [fromEmail, setFromEmail] = useState('');
+  const [stopOnOpen, setStopOnOpen] = useState(false);
+  const [stopOnReply, setStopOnReply] = useState(true);
   const [steps, setSteps] = useState<DraftStep[]>([{ ...EMPTY_STEP, delay_days: 0 }]);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterValue, setFilterValue] = useState('');
 
   const resetForm = () => {
     setWizardStep(0); setName(''); setFromName(''); setFromEmail('');
+    setStopOnOpen(false); setStopOnReply(true);
     setSteps([{ ...EMPTY_STEP, delay_days: 0 }]);
     setFilterType('all'); setFilterValue(''); setError('');
   };
@@ -254,6 +257,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, from_name: fromName, from_email: fromEmail,
+          stop_on_open: stopOnOpen, stop_on_reply: stopOnReply,
           recipient_filter: { type: filterType, value: filterValue || undefined },
           steps,
         }),
@@ -332,6 +336,27 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
                     type="email"
                     className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-2">Warunki zatrzymania sekwencji</label>
+                <div className="space-y-2">
+                  {[
+                    { id: 'stop-open',  label: 'Zatrzymaj gdy odbiorca otworzy email',   value: stopOnOpen,  set: setStopOnOpen  },
+                    { id: 'stop-reply', label: 'Zatrzymaj gdy odbiorca kliknie "Odpowiedz"', value: stopOnReply, set: setStopOnReply },
+                  ].map(opt => (
+                    <label key={opt.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-border-strong cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        id={opt.id}
+                        checked={opt.value}
+                        onChange={e => opt.set(e.target.checked)}
+                        className="w-4 h-4 accent-accent"
+                      />
+                      <span className="text-sm text-text-primary">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[10px] text-text-muted mt-1.5">Każdy email zawiera też automatyczny link do wypisania się (wymóg RODO).</p>
               </div>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
                 <strong>Wskazówka:</strong> W Resend musisz zweryfikować domenę nadawcy, żeby emaile nie trafiały do spamu. Na czas testów możesz użyć <code>onboarding@resend.dev</code>.
@@ -483,19 +508,45 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh }: {
       <div className="p-6 space-y-6">
         {/* Header stats */}
         {campaign && (
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: 'Odbiorcy', value: campaign.total_recipients, icon: Users, color: 'text-slate-500' },
-              { label: 'Wysłane', value: campaign.sent_count, icon: Send, color: 'text-blue-500' },
-              { label: 'Otwarte', value: campaign.opened_count, icon: Eye, color: 'text-emerald-500' },
-              { label: 'Odpisało', value: campaign.replied_count, icon: CheckCircle2, color: 'text-violet-500' },
-            ].map(stat => (
-              <div key={stat.label} className="p-3 bg-bg-subtle border border-border rounded-xl text-center">
-                <stat.icon size={16} className={cn('mx-auto mb-1', stat.color)} />
-                <p className="text-xl font-bold text-text-primary">{stat.value}</p>
-                <p className="text-xs text-text-muted">{stat.label}</p>
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Wysłane',    value: campaign.sent_count,       icon: Send,          color: 'text-blue-500'    },
+                { label: 'Dostarczono',value: campaign.delivered_count,  icon: CheckCircle2,  color: 'text-emerald-400' },
+                { label: 'Otwarte',    value: campaign.opened_count,     icon: Eye,           color: 'text-emerald-500' },
+              ].map(stat => (
+                <div key={stat.label} className="p-3 bg-bg-subtle border border-border rounded-xl text-center">
+                  <stat.icon size={15} className={cn('mx-auto mb-1', stat.color)} />
+                  <p className="text-xl font-bold text-text-primary">{stat.value}</p>
+                  <p className="text-xs text-text-muted">{stat.label}</p>
+                  {stat.label !== 'Wysłane' && campaign.sent_count > 0 && (
+                    <p className="text-[10px] text-text-muted">{Math.round((stat.value / campaign.sent_count) * 100)}%</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Kliknięcia',  value: campaign.clicked_count,   icon: BarChart2,     color: 'text-indigo-500' },
+                { label: 'Odpowiedzi',  value: campaign.replied_count,   icon: CheckCircle2,  color: 'text-violet-500' },
+                { label: 'Odbitki',     value: campaign.bounced_count,   icon: AlertCircle,   color: 'text-red-400'    },
+              ].map(stat => (
+                <div key={stat.label} className="p-3 bg-bg-subtle border border-border rounded-xl text-center">
+                  <stat.icon size={15} className={cn('mx-auto mb-1', stat.color)} />
+                  <p className="text-xl font-bold text-text-primary">{stat.value}</p>
+                  <p className="text-xs text-text-muted">{stat.label}</p>
+                  {campaign.sent_count > 0 && (
+                    <p className="text-[10px] text-text-muted">{Math.round((stat.value / campaign.sent_count) * 100)}%</p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {(campaign.stop_on_open || campaign.stop_on_reply) && (
+              <div className="flex gap-2 flex-wrap">
+                {campaign.stop_on_open  && <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Stop po otwarciu</span>}
+                {campaign.stop_on_reply && <span className="text-xs px-2 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Stop po odpowiedzi</span>}
               </div>
-            ))}
+            )}
           </div>
         )}
 
@@ -692,10 +743,12 @@ export default function MarketingPage() {
   const [detailCampaign, setDetailCampaign] = useState<EmailCampaign | null>(null);
 
   const totalSent = campaigns.reduce((s, c) => s + c.sent_count, 0);
-  const totalRecipients = campaigns.reduce((s, c) => s + c.total_recipients, 0);
-  const avgOpenRate = campaigns.filter(c => c.sent_count > 0).length > 0
-    ? Math.round(campaigns.reduce((s, c) => s + (c.sent_count > 0 ? c.opened_count / c.sent_count : 0), 0)
-        / campaigns.filter(c => c.sent_count > 0).length * 100)
+  const totalReplied = campaigns.reduce((s, c) => s + c.replied_count, 0);
+  const avgOpenRate = totalSent > 0
+    ? Math.round(campaigns.reduce((s, c) => s + c.opened_count, 0) / totalSent * 100)
+    : 0;
+  const avgReplyRate = totalSent > 0
+    ? Math.round(totalReplied / totalSent * 100)
     : 0;
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
 
@@ -722,10 +775,10 @@ export default function MarketingPage() {
       {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Aktywne kampanie', value: activeCampaigns, icon: Zap, color: 'text-emerald-500' },
-          { label: 'Wysłane emaile', value: totalSent, icon: Send, color: 'text-blue-500' },
-          { label: 'Avg. otwarcia', value: `${avgOpenRate}%`, icon: BarChart2, color: 'text-violet-500' },
-          { label: 'Łączni odbiorcy', value: totalRecipients, icon: Users, color: 'text-slate-500' },
+          { label: 'Aktywne kampanie', value: activeCampaigns,       icon: Zap,      color: 'text-emerald-500' },
+          { label: 'Wysłane emaile',   value: totalSent,             icon: Send,     color: 'text-blue-500'   },
+          { label: 'Avg. otwarcia',    value: `${avgOpenRate}%`,     icon: Eye,      color: 'text-violet-500' },
+          { label: 'Avg. odpowiedzi',  value: `${avgReplyRate}%`,    icon: BarChart2,color: 'text-indigo-500' },
         ].map(kpi => (
           <div key={kpi.label} className="bg-bg-base border border-border rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">

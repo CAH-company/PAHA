@@ -12,30 +12,48 @@ function applyVars(template: string, lead: { name?: string; company?: string; em
     .replace(/\{\{email\}\}/g, lead.email ?? '');
 }
 
-// Process due follow-up steps — only for the caller's own campaigns
+function buildHtml(body: string, recipientId: string, fromEmail: string, appUrl: string) {
+  const base = appUrl.replace(/\/$/, '');
+  const pixel = `<img src="${base}/api/email-campaigns/track?type=open&rid=${recipientId}" width="1" height="1" alt="" style="display:none" />`;
+  const replyUrl = `${base}/api/email-campaigns/track?type=reply&rid=${recipientId}`;
+  const unsubUrl = `${base}/api/email-campaigns/unsubscribe?rid=${recipientId}`;
+
+  const footer = `
+<br><br>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
+<p style="font-size:12px;color:#94a3b8;margin:0">
+  <a href="${replyUrl}" style="color:#6366f1;text-decoration:none">Odpowiedz na tego emaila</a>
+  &nbsp;·&nbsp;
+  <a href="${unsubUrl}" style="color:#94a3b8;text-decoration:none">Wypisz mnie z tej listy</a>
+</p>
+${pixel}`;
+
+  return body.replace(/\n/g, '<br>') + footer;
+}
+
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
   const { data: emp } = await admin.from('employees').select('id').eq('user_id', user.id).single();
   if (!emp) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const now = new Date();
 
-  // Only process recipients belonging to campaigns owned by this employee
   const { data: dueRecipients } = await admin
     .from('email_campaign_recipients')
     .select(`
       id, campaign_id, lead_id, current_step, status,
-      campaign:email_campaigns!campaign_id(id, name, from_name, from_email, status, created_by, steps:email_campaign_steps(*)),
+      campaign:email_campaigns!campaign_id(id, name, from_name, from_email, status, created_by, stop_on_open, stop_on_reply, sent_count, steps:email_campaign_steps(*)),
       lead:leads!lead_id(id, name, email, company)
     `)
     .eq('status', 'active')
     .lte('next_send_at', now.toISOString());
 
-  // Filter to only this employee's campaigns
   const ownedDue = (dueRecipients ?? []).filter(
     (r: any) => r.campaign?.created_by === emp.id && r.campaign?.status === 'active'
   );
@@ -59,7 +77,8 @@ export async function POST() {
     if (!lead?.email) continue;
 
     const subject = applyVars(step.subject, lead);
-    const body = applyVars(step.body_html, lead);
+    const bodyText = applyVars(step.body_html, lead);
+    const html = buildHtml(bodyText, rec.id, campaign.from_email, appUrl);
 
     let resendId: string | null = null;
     let sendStatus = 'sent';
@@ -71,7 +90,7 @@ export async function POST() {
           from: `${campaign.from_name} <${campaign.from_email}>`,
           to: lead.email,
           subject,
-          html: body.replace(/\n/g, '<br>'),
+          html,
         });
         resendId = r?.id ?? null;
       } catch {
@@ -101,10 +120,9 @@ export async function POST() {
       resend_id: resendId,
     });
 
-    // Increment campaign sent_count
     await admin
       .from('email_campaigns')
-      .update({ sent_count: campaign.sent_count + 1 })
+      .update({ sent_count: (campaign.sent_count ?? 0) + 1 })
       .eq('id', rec.campaign_id);
 
     processed++;

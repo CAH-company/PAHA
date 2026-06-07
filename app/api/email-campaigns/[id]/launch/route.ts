@@ -12,18 +12,36 @@ function applyVars(template: string, lead: { name?: string; company?: string; em
     .replace(/\{\{email\}\}/g, lead.email ?? '');
 }
 
+function buildHtml(body: string, recipientId: string, fromEmail: string, appUrl: string) {
+  const base = appUrl.replace(/\/$/, '');
+  const pixel = `<img src="${base}/api/email-campaigns/track?type=open&rid=${recipientId}" width="1" height="1" alt="" style="display:none" />`;
+  const replyUrl = `${base}/api/email-campaigns/track?type=reply&rid=${recipientId}`;
+  const unsubUrl = `${base}/api/email-campaigns/unsubscribe?rid=${recipientId}`;
+
+  const footer = `
+<br><br>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
+<p style="font-size:12px;color:#94a3b8;margin:0">
+  <a href="${replyUrl}" style="color:#6366f1;text-decoration:none">Odpowiedz na tego emaila</a>
+  &nbsp;·&nbsp;
+  <a href="${unsubUrl}" style="color:#94a3b8;text-decoration:none">Wypisz mnie z tej listy</a>
+</p>
+${pixel}`;
+
+  return body.replace(/\n/g, '<br>') + footer;
+}
+
 export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
-  // Resolve employee
   const { data: emp } = await admin.from('employees').select('id').eq('user_id', user.id).single();
   if (!emp) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Load campaign + steps — then verify ownership before doing anything
   const { data: campaign, error: campErr } = await admin
     .from('email_campaigns')
     .select('*, steps:email_campaign_steps(*)')
@@ -37,7 +55,6 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
   const steps = (campaign.steps ?? []).sort((a: any, b: any) => a.step_order - b.step_order);
   if (!steps.length) return NextResponse.json({ error: 'Brak kroków w sekwencji' }, { status: 400 });
 
-  // Resolve recipients from filter
   const filter = campaign.recipient_filter ?? { type: 'all' };
   let leadsQuery = admin.from('leads').select('id, name, email, company').eq('is_archived', false).not('email', 'is', null);
   if (filter.type === 'status' && filter.value) leadsQuery = leadsQuery.eq('status', filter.value);
@@ -47,7 +64,6 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
 
   if (!validLeads.length) return NextResponse.json({ error: 'Brak leadów z emailami pasujących do filtra' }, { status: 400 });
 
-  // Upsert recipient rows
   const recipientRows = validLeads.map((l: any) => ({
     campaign_id: campaign.id,
     lead_id: l.id,
@@ -71,7 +87,8 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     if (!lead?.email) continue;
 
     const subject = applyVars(step1.subject, lead);
-    const body = applyVars(step1.body_html, lead);
+    const bodyText = applyVars(step1.body_html, lead);
+    const html = buildHtml(bodyText, rec.id, campaign.from_email, appUrl);
 
     let resendId: string | null = null;
     let sendStatus = 'sent';
@@ -83,7 +100,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
           from: `${campaign.from_name} <${campaign.from_email}>`,
           to: lead.email,
           subject,
-          html: body.replace(/\n/g, '<br>'),
+          html,
         });
         resendId = r?.id ?? null;
       } catch {
