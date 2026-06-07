@@ -61,15 +61,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Brak konfiguracji Meta Ads — ustaw Access Token i Account ID w ustawieniach.' }, { status: 422 });
   }
 
-  // Hourly cron: check if it's time to sync
+  // Daily cron (Hobby plan): skip if already synced today
   if (isCron) {
-    const syncTime  = cfg.meta_sync_time ?? '06:00';
-    const lastSync  = cfg.meta_last_synced ?? '';
-    const todayStr  = new Date().toISOString().slice(0, 10);
-    const nowHHMM   = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' });
-
-    if (lastSync === todayStr || nowHHMM < syncTime) {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'not yet time or already synced today' });
+    const lastSync = cfg.meta_last_synced ?? '';
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (lastSync === todayStr) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'already synced today' });
     }
   }
 
