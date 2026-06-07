@@ -742,15 +742,8 @@ export default function MarketingPage() {
   const [showBuilder, setShowBuilder] = useState(false);
   const [detailCampaign, setDetailCampaign] = useState<EmailCampaign | null>(null);
 
-  const totalSent = campaigns.reduce((s, c) => s + c.sent_count, 0);
-  const totalReplied = campaigns.reduce((s, c) => s + c.replied_count, 0);
-  const avgOpenRate = totalSent > 0
-    ? Math.round(campaigns.reduce((s, c) => s + c.opened_count, 0) / totalSent * 100)
-    : 0;
-  const avgReplyRate = totalSent > 0
-    ? Math.round(totalReplied / totalSent * 100)
-    : 0;
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
+  const totalSent = campaigns.reduce((s, c) => s + c.sent_count, 0);
 
   if (loading) {
     return (
@@ -772,23 +765,22 @@ export default function MarketingPage() {
         </Button>
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Aktywne kampanie', value: activeCampaigns,       icon: Zap,      color: 'text-emerald-500' },
-          { label: 'Wysłane emaile',   value: totalSent,             icon: Send,     color: 'text-blue-500'   },
-          { label: 'Avg. otwarcia',    value: `${avgOpenRate}%`,     icon: Eye,      color: 'text-violet-500' },
-          { label: 'Avg. odpowiedzi',  value: `${avgReplyRate}%`,    icon: BarChart2,color: 'text-indigo-500' },
-        ].map(kpi => (
-          <div key={kpi.label} className="bg-bg-base border border-border rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-text-muted uppercase tracking-wider font-medium">{kpi.label}</p>
-              <kpi.icon size={14} className={kpi.color} />
-            </div>
-            <p className="text-2xl font-bold text-text-primary">{kpi.value}</p>
-          </div>
-        ))}
-      </div>
+      {/* Summary strip */}
+      {campaigns.length > 0 && (
+        <div className="flex items-center gap-4 text-xs text-text-muted">
+          <span className="flex items-center gap-1.5">
+            <Zap size={12} className="text-emerald-500" />
+            <strong className="text-text-primary">{activeCampaigns}</strong> aktywne
+          </span>
+          <span className="text-border">·</span>
+          <span className="flex items-center gap-1.5">
+            <Send size={12} className="text-blue-500" />
+            <strong className="text-text-primary">{totalSent.toLocaleString('pl-PL')}</strong> wysłanych łącznie
+          </span>
+          <span className="text-border">·</span>
+          <span>Kliknij kampanię, aby zobaczyć szczegółowe statystyki</span>
+        </div>
+      )}
 
       {/* Campaign list */}
       <div>

@@ -472,21 +472,24 @@ function SecuritySection() {
 }
 
 function EmailSection() {
-  const KEYS = ['resend_api_key', 'resend_from_email', 'resend_from_name', 'resend_reply_to'];
+  const KEYS = ['resend_api_key', 'resend_from_email', 'resend_from_name', 'resend_reply_to', 'resend_webhook_secret'];
   const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
 
   function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
 
   async function save() {
     setSaving(true);
     const ok = await saveSettings([
-      { key: 'resend_api_key', value: data.resend_api_key ?? '', is_secret: true, label: 'Resend API Key' },
-      { key: 'resend_from_email', value: data.resend_from_email ?? '', label: 'Email nadawcy' },
-      { key: 'resend_from_name', value: data.resend_from_name ?? '', label: 'Nazwa nadawcy' },
-      { key: 'resend_reply_to', value: data.resend_reply_to ?? '', label: 'Reply-To' },
+      { key: 'resend_api_key',        value: data.resend_api_key        ?? '', is_secret: true, label: 'Resend API Key' },
+      { key: 'resend_from_email',     value: data.resend_from_email     ?? '', label: 'Email nadawcy' },
+      { key: 'resend_from_name',      value: data.resend_from_name      ?? '', label: 'Nazwa nadawcy' },
+      { key: 'resend_reply_to',       value: data.resend_reply_to       ?? '', label: 'Reply-To' },
+      { key: 'resend_webhook_secret', value: data.resend_webhook_secret ?? '', is_secret: true, label: 'Resend Webhook Secret' },
     ]);
     setSaving(false);
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
@@ -499,11 +502,11 @@ function EmailSection() {
     <>
       <h2 className="text-base font-semibold text-text-primary">Email — Resend</h2>
       <div className="p-3 bg-accent-subtle border border-accent/20 rounded-lg text-xs text-text-secondary">
-        Resend służy do wysyłania emaili z aplikacji do klientów i powiadomień systemowych.
+        Resend służy do wysyłania kampanii emailowych. Klucze możesz też ustawić w zmiennych środowiskowych Vercel — te ustawienia mają priorytet.
       </div>
       <SecretField
         label="Resend API Key"
-        description="Klucz API z panelu resend.com"
+        description="Klucz API z panelu resend.com → API Keys"
         value={data.resend_api_key ?? ''}
         onChange={v => set('resend_api_key', v)}
       />
@@ -516,6 +519,30 @@ function EmailSection() {
       <Input label="Reply-To email" value={data.resend_reply_to ?? ''}
         onChange={e => set('resend_reply_to', e.target.value)}
         placeholder="odpowiedzi@twojafirma.pl" />
+
+      <div className="border-t border-border pt-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-text-secondary mb-1">Webhook URL</p>
+          <p className="text-xs text-text-muted mb-2">Wklej ten adres w Resend → Webhooks → Add Webhook. Zaznacz events: delivered, opened, clicked, bounced.</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs bg-bg-subtle border border-border rounded-md px-3 py-2 text-text-primary font-mono truncate">
+              {origin}/api/email-campaigns/webhook
+            </code>
+            <button
+              onClick={() => navigator.clipboard.writeText(`${origin}/api/email-campaigns/webhook`)}
+              className="p-2 rounded-md border border-border hover:bg-bg-subtle transition-colors text-text-muted hover:text-text-primary">
+              <Copy size={13} />
+            </button>
+          </div>
+        </div>
+        <SecretField
+          label="Resend Webhook Secret"
+          description="Signing secret z Resend po dodaniu webhooka (zaczyna się od whsec_)"
+          value={data.resend_webhook_secret ?? ''}
+          onChange={v => set('resend_webhook_secret', v)}
+        />
+      </div>
+
       <SaveRow onSave={save} saving={saving} saved={saved} error={error} />
     </>
   );
