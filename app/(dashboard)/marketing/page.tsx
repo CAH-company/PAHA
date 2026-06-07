@@ -213,6 +213,9 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [wizardStep, setWizardStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testEmail, setTestEmail] = useState('');
+  const [testingIdx, setTestingIdx] = useState<number | null>(null);
+  const [testMsg, setTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [name, setName] = useState('');
   const [fromName, setFromName] = useState('');
@@ -226,6 +229,22 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [steps, setSteps] = useState<DraftStep[]>([{ ...EMPTY_STEP, delay_days: 0 }]);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterValue, setFilterValue] = useState('');
+
+  const sendTestEmail = async (idx: number) => {
+    const step = steps[idx];
+    if (!step.subject || !step.body_html) return;
+    if (!testEmail) { setTestMsg({ ok: false, text: 'Podaj adres email do testu' }); return; }
+    setTestingIdx(idx); setTestMsg(null);
+    const res = await fetch('/api/email-campaigns/test-send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: testEmail, from_name: fromName, from_email: fromEmail || 'onboarding@resend.dev', subject: step.subject, body_html: step.body_html }),
+    });
+    const data = await res.json();
+    setTestingIdx(null);
+    setTestMsg(res.ok ? { ok: true, text: `Email wysłany na ${testEmail}` } : { ok: false, text: data.error ?? 'Błąd wysyłki' });
+    setTimeout(() => setTestMsg(null), 5000);
+  };
 
   const resetForm = () => {
     setWizardStep(0); setName(''); setFromName(''); setFromEmail('');
@@ -442,10 +461,38 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
           {wizardStep === 1 && (
             <div className="space-y-4">
               <p className="text-xs text-text-muted">Zaprojektuj sekwencję emaili. Pierwszy wyślemy od razu po uruchomieniu, kolejne po zdefiniowanym opóźnieniu.</p>
+
+              {/* Test email bar */}
+              <div className="flex items-center gap-2 p-3 bg-bg-subtle border border-border rounded-xl">
+                <span className="text-xs font-medium text-text-muted whitespace-nowrap">Wyślij testowy email na:</span>
+                <input
+                  value={testEmail}
+                  onChange={e => setTestEmail(e.target.value)}
+                  placeholder="twoj@email.com"
+                  type="email"
+                  className="flex-1 border border-border rounded-lg px-2.5 py-1.5 text-xs bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent/40"
+                />
+                {testMsg && (
+                  <span className={cn('text-xs px-2 py-1 rounded-lg whitespace-nowrap', testMsg.ok ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50')}>
+                    {testMsg.text}
+                  </span>
+                )}
+              </div>
+
               {steps.map((step, i) => (
-                <StepEditor key={i} step={step} index={i} total={steps.length}
-                  onChange={s => updateStep(i, s)}
-                  onRemove={() => removeStep(i)} />
+                <div key={i}>
+                  <StepEditor step={step} index={i} total={steps.length}
+                    onChange={s => updateStep(i, s)}
+                    onRemove={() => removeStep(i)} />
+                  <button
+                    onClick={() => sendTestEmail(i)}
+                    disabled={testingIdx === i || !step.subject || !step.body_html}
+                    className="mt-2 ml-auto flex items-center gap-1.5 text-xs text-accent hover:underline disabled:opacity-40 disabled:cursor-not-allowed">
+                    {testingIdx === i
+                      ? <><span className="w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin" /> Wysyłam...</>
+                      : <><Send size={11} /> Wyślij ten krok testowo</>}
+                  </button>
+                </div>
               ))}
               {steps.length < 5 && (
                 <button onClick={addStep}
