@@ -65,7 +65,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/operations/meetings', icon: Video, label: 'Spotkania' },
       { href: '/operations/mail', icon: Mail, label: 'Mail' },
       { href: '/operations/documents', icon: FileText, label: 'Dokumenty (WIP)' },
-      { href: '/marketing', icon: Megaphone, label: 'Marketing (WIP)' },
+      { href: '/marketing', icon: Megaphone, label: 'Email Outreach' },
     ],
   },
   {

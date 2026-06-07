@@ -252,6 +252,60 @@ export interface Notification {
   created_at: string;
 }
 
+// ─── Email Campaigns ──────────────────────────────────────────────────────────
+
+export type EmailCampaignStatus = 'draft' | 'active' | 'paused' | 'completed';
+
+export type RecipientFilterType = 'all' | 'status' | 'source';
+
+export interface RecipientFilter {
+  type: RecipientFilterType;
+  value?: string;
+}
+
+export interface EmailCampaignStep {
+  id: string;
+  campaign_id: string;
+  step_order: number;
+  subject: string;
+  body_html: string;
+  delay_days: number;
+  created_at: string;
+}
+
+export type RecipientStatus = 'pending' | 'active' | 'completed' | 'bounced' | 'replied' | 'unsubscribed';
+
+export interface EmailCampaignRecipient {
+  id: string;
+  campaign_id: string;
+  lead_id: string;
+  lead?: Lead;
+  status: RecipientStatus;
+  current_step: number;
+  next_send_at?: string;
+  last_sent_at?: string;
+  created_at: string;
+}
+
+export interface EmailCampaign {
+  id: string;
+  name: string;
+  from_name: string;
+  from_email: string;
+  status: EmailCampaignStatus;
+  recipient_filter: RecipientFilter;
+  total_recipients: number;
+  sent_count: number;
+  opened_count: number;
+  replied_count: number;
+  bounced_count: number;
+  steps?: EmailCampaignStep[];
+  recipients?: EmailCampaignRecipient[];
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DashboardStats {
   leads_total: number;
   leads_new: number;
