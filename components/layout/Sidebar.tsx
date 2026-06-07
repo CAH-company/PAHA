@@ -13,7 +13,7 @@ import {
   Archive,
   DollarSign,
   ReceiptText,
-  FileText,
+  BarChart2,
   Megaphone,
   CheckSquare,
   UserCog,
@@ -64,7 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: '/operations/agent', icon: BotMessageSquare, label: 'Agent AI' },
       { href: '/operations/meetings', icon: Video, label: 'Spotkania' },
       { href: '/operations/mail', icon: Mail, label: 'Mail' },
-      { href: '/operations/documents', icon: FileText, label: 'Dokumenty (WIP)' },
+      { href: '/operations/meta-ads', icon: BarChart2, label: 'Meta Ads' },
       { href: '/marketing', icon: Megaphone, label: 'Email Outreach' },
     ],
   },
@@ -86,7 +86,7 @@ export function Sidebar() {
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
-    if (href === '/operations/documents') return pathname.startsWith('/operations/documents');
+    if (href === '/operations/meta-ads') return pathname.startsWith('/operations/meta-ads');
     return pathname === href || pathname.startsWith(href + '/');
   };
 
