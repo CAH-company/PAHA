@@ -245,7 +245,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
   const isEditMode = !!editCampaign;
   const isNonDraftEdit = isEditMode && editCampaign.status !== 'draft';
   const WIZARD_STEPS = isNonDraftEdit
-    ? ['Ustawienia', 'Podsumowanie']
+    ? ['Ustawienia', 'Sekwencja', 'Podsumowanie']
     : ['Podstawy', 'Sekwencja', 'Odbiorcy', 'Podsumowanie'];
 
   // Pre-populate form when editing
@@ -324,7 +324,11 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
   });
 
   const canNext = isNonDraftEdit
-    ? [name.trim() && fromName.trim() && fromEmail.trim(), true]
+    ? [
+        name.trim() && fromName.trim() && fromEmail.trim(),
+        steps.every(s => s.subject.trim() && s.body_html.trim()),
+        true,
+      ]
     : [
         name.trim() && fromName.trim() && fromEmail.trim(),
         steps.every(s => s.subject.trim() && s.body_html.trim()),
@@ -427,7 +431,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
               {isNonDraftEdit && (
                 <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
                   <Info size={14} className="mt-0.5 flex-shrink-0" />
-                  <span>Kampania jest <strong>{STATUS_CONFIG[editCampaign.status]?.label}</strong>. Możesz edytować nazwę, nadawcę i ustawienia. Kroki sekwencji i odbiorcy pozostają bez zmian.</span>
+                  <span>Kampania jest <strong>{STATUS_CONFIG[editCampaign.status]?.label}</strong>. Możesz edytować ustawienia i sekwencję — zmiany w krokach obowiązują od następnego wysyłki dla każdego odbiorcy.</span>
                 </div>
               )}
               <div>
@@ -523,8 +527,8 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
             </div>
           )}
 
-          {/* Sequence — step 1 (only new/draft edit) */}
-          {wizardStep === 1 && !isNonDraftEdit && (
+          {/* Sequence — step 1 */}
+          {wizardStep === 1 && (
             <div className="space-y-4">
               <p className="text-xs text-text-muted">Pierwszy email wysyłamy od razu, kolejne po zadanym opóźnieniu.</p>
               <div className="flex items-center gap-2 p-3 bg-bg-subtle border border-border rounded-xl">
@@ -560,7 +564,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
             </div>
           )}
 
-          {/* Recipients — step 2 (only new/draft edit) */}
+          {/* Recipients — step 2 (only new campaigns and draft edit) */}
           {wizardStep === 2 && !isNonDraftEdit && (
             <RecipientSelector
               leads={leads}
@@ -590,15 +594,15 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
 
               <div>
                 <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
-                  Sekwencja — {isNonDraftEdit ? (editCampaign.steps?.length ?? 0) : steps.length} krok{steps.length === 1 ? '' : steps.length < 5 ? 'i' : 'ów'}
+                  Sekwencja — {steps.length} krok{steps.length === 1 ? '' : steps.length < 5 ? 'i' : 'ów'}
                 </p>
                 <div className="space-y-2">
-                  {(isNonDraftEdit ? editCampaign.steps?.sort((a: any, b: any) => a.step_order - b.step_order) : steps).map((s: any, i: number) => (
+                  {steps.map((s, i) => (
                     <div key={i} className="flex items-start gap-3 p-3 bg-bg-subtle border border-border rounded-xl">
                       <span className="w-6 h-6 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary truncate">{(s.subject || s.subject) || <span className="italic text-text-muted">Brak tematu</span>}</p>
-                        <p className="text-xs text-text-muted">{i === 0 ? 'Wysyłany od razu' : `po ${s.delay_days || s.delay_days} dniach`}</p>
+                        <p className="text-sm font-medium text-text-primary truncate">{s.subject || <span className="italic text-text-muted">Brak tematu</span>}</p>
+                        <p className="text-xs text-text-muted">{i === 0 ? 'Wysyłany od razu' : `po ${s.delay_days} dniach`}</p>
                       </div>
                     </div>
                   ))}

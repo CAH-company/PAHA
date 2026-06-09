@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  if (existing.status === 'draft' && steps?.length) {
+  if (steps?.length) {
     await admin.from('email_campaign_steps').delete().eq('campaign_id', params.id);
     const stepRows = steps.map((s: any, i: number) => ({
       campaign_id: params.id,
