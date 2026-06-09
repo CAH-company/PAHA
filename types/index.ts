@@ -299,6 +299,7 @@ export interface EmailCampaign {
   name: string;
   from_name: string;
   from_email: string;
+  signature_html?: string | null;
   status: EmailCampaignStatus;
   recipient_filter: RecipientFilter;
   stop_on_open: boolean;

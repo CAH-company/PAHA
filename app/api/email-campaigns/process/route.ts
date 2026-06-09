@@ -59,7 +59,7 @@ export async function POST() {
 
     const subject  = applyVars(step.subject, lead);
     const bodyText = applyVars(step.body_html, lead);
-    const html     = buildHtml(bodyText, rec.id, appUrl);
+    const html     = buildHtml(bodyText, rec.id, appUrl, campaign.signature_html);
 
     let resendId: string | null = null;
     let sendStatus = 'sent';

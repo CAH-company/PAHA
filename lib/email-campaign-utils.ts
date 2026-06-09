@@ -46,21 +46,23 @@ export function buildHtml(
   body: string,
   recipientId: string,
   appUrl: string,
+  signatureHtml?: string | null,
 ) {
   const base = appUrl.replace(/\/$/, '');
   const pixel    = `<img src="${base}/api/email-campaigns/track?type=open&rid=${recipientId}" width="1" height="1" alt="" style="display:none" />`;
-  const replyUrl = `${base}/api/email-campaigns/track?type=reply&rid=${recipientId}`;
   const unsubUrl = `${base}/api/email-campaigns/unsubscribe?rid=${recipientId}`;
+
+  const sig = signatureHtml
+    ? `<br><br><hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0" />${signatureHtml}`
+    : '';
 
   const footer = `
 <br><br>
 <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0" />
 <p style="font-size:12px;color:#94a3b8;margin:0">
-  <a href="${replyUrl}" style="color:#6366f1;text-decoration:none">Odpowiedz na tego emaila</a>
-  &nbsp;·&nbsp;
   <a href="${unsubUrl}" style="color:#94a3b8;text-decoration:none">Wypisz mnie z tej listy</a>
 </p>
 ${pixel}`;
 
-  return body.replace(/\n/g, '<br>') + footer;
+  return body.replace(/\n/g, '<br>') + sig + footer;
 }

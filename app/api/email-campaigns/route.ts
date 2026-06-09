@@ -35,11 +35,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Brakuje wymaganych pól' }, { status: 400 });
   }
 
-  const { stop_on_open = false, stop_on_reply = false, send_window = null } = body;
+  const {
+    stop_on_open = false,
+    stop_on_reply = false,
+    send_window = null,
+    signature_html = null,
+  } = body;
 
   const { data: campaign, error: campErr } = await admin
     .from('email_campaigns')
-    .insert({ name, from_name, from_email, recipient_filter: recipient_filter ?? { type: 'all' }, stop_on_open, stop_on_reply, send_window, created_by: emp?.id })
+    .insert({ name, from_name, from_email, signature_html, recipient_filter: recipient_filter ?? { type: 'all' }, stop_on_open, stop_on_reply, send_window, created_by: emp?.id })
     .select()
     .single();
 

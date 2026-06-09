@@ -31,6 +31,62 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   return NextResponse.json(data);
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const admin = createAdminClient();
+  const empId = await resolveEmpId(admin, user.id);
+  if (!empId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { data: existing } = await admin
+    .from('email_campaigns')
+    .select('status, created_by')
+    .eq('id', params.id)
+    .single();
+
+  if (!existing || existing.created_by !== empId)
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const body = await req.json();
+  const {
+    name, from_name, from_email, signature_html,
+    stop_on_open, stop_on_reply, send_window,
+    recipient_filter, steps,
+  } = body;
+
+  const { error: updErr } = await admin
+    .from('email_campaigns')
+    .update({
+      name, from_name, from_email,
+      signature_html: signature_html ?? null,
+      stop_on_open: stop_on_open ?? false,
+      stop_on_reply: stop_on_reply ?? false,
+      send_window: send_window ?? null,
+      recipient_filter: recipient_filter ?? { type: 'all' },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', params.id);
+
+  if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+
+  if (existing.status === 'draft' && steps?.length) {
+    await admin.from('email_campaign_steps').delete().eq('campaign_id', params.id);
+    const stepRows = steps.map((s: any, i: number) => ({
+      campaign_id: params.id,
+      step_order: i + 1,
+      subject: s.subject,
+      body_html: s.body_html,
+      delay_days: i === 0 ? 0 : (s.delay_days ?? 3),
+    }));
+    const { error: stepsErr } = await admin.from('email_campaign_steps').insert(stepRows);
+    if (stepsErr) return NextResponse.json({ error: stepsErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

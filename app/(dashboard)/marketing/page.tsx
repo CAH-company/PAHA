@@ -1,35 +1,34 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-  Plus, Mail, Send, Pause, Play, Trash2, Eye, ChevronDown,
-  ChevronRight, Users, CheckCircle2, AlertCircle, Clock,
-  BarChart2, RefreshCw, X, ArrowRight, Zap,
+  Plus, Mail, Send, Pause, Play, Trash2, Eye, ChevronRight,
+  Users, CheckCircle2, AlertCircle, Clock, BarChart2, RefreshCw,
+  X, ArrowRight, Zap, Edit2, Settings, List, TrendingUp, Info,
 } from 'lucide-react';
 import { useEmailCampaigns } from '@/hooks/useEmailCampaigns';
 import { useLeads } from '@/hooks/useLeads';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
-import type { EmailCampaign, EmailCampaignStep, RecipientStatus, LeadStatus, LeadSource } from '@/types';
+import type { EmailCampaign, RecipientStatus, LeadStatus, LeadSource } from '@/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'Szkic',     color: '#94a3b8', bg: '#f1f5f9' },
-  active:    { label: 'Aktywna',   color: '#10b981', bg: '#ecfdf5' },
-  paused:    { label: 'Pauza',     color: '#f59e0b', bg: '#fffbeb' },
-  completed: { label: 'Zakończona',color: '#6366f1', bg: '#eef2ff' },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  draft:     { label: 'Szkic',      color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1' },
+  active:    { label: 'Aktywna',    color: '#059669', bg: '#ecfdf5', border: '#6ee7b7' },
+  paused:    { label: 'Wstrzymana', color: '#d97706', bg: '#fffbeb', border: '#fcd34d' },
+  completed: { label: 'Zakończona', color: '#6366f1', bg: '#eef2ff', border: '#a5b4fc' },
 };
 
 const RECIPIENT_STATUS_CONFIG: Record<RecipientStatus, { label: string; dot: string }> = {
-  pending:     { label: 'Oczekuje',    dot: 'bg-slate-300' },
-  active:      { label: 'W sekwencji', dot: 'bg-blue-500' },
-  completed:   { label: 'Zakończono',  dot: 'bg-emerald-500' },
-  bounced:     { label: 'Odbitka',     dot: 'bg-red-500' },
-  replied:     { label: 'Odpisał',     dot: 'bg-violet-500' },
-  unsubscribed:{ label: 'Wypisał się', dot: 'bg-amber-400' },
+  pending:      { label: 'Oczekuje',    dot: 'bg-slate-400' },
+  active:       { label: 'W sekwencji', dot: 'bg-blue-500'  },
+  completed:    { label: 'Zakończono',  dot: 'bg-emerald-500' },
+  bounced:      { label: 'Odbitka',     dot: 'bg-red-500'   },
+  replied:      { label: 'Odpisał',     dot: 'bg-violet-500' },
+  unsubscribed: { label: 'Wypisał się', dot: 'bg-amber-400'  },
 };
 
 const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
@@ -71,7 +70,7 @@ function StepEditor({
               onChange={e => onChange({ ...step, delay_days: Number(e.target.value) })}
               className="w-12 border border-border rounded px-1.5 py-0.5 text-center text-xs bg-bg-base text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/40"
             />
-            <span>dni po poprzednim kroku</span>
+            <span>dni po poprzednim</span>
           </div>
         </div>
       )}
@@ -82,18 +81,29 @@ function StepEditor({
               {index + 1}
             </span>
             <span className="text-sm font-semibold text-text-primary">
-              {index === 0 ? 'Pierwszy email' : `Następny email`}
+              {index === 0 ? 'Pierwszy email' : 'Kolejny email'}
             </span>
+            {index === 0 && <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Wysyłany od razu</span>}
           </div>
           {total > 1 && (
-            <button onClick={onRemove} className="text-text-muted hover:text-red-500 transition-colors">
+            <button onClick={onRemove} className="text-text-muted hover:text-red-500 transition-colors p-1">
               <X size={14} />
             </button>
           )}
         </div>
         <div className="p-4 space-y-3">
           <div>
-            <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1">Temat</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-text-muted uppercase tracking-wider">Temat</label>
+              <div className="flex gap-1">
+                {VARS.map(v => (
+                  <button key={v} onClick={() => insertVar('subject', v)}
+                    className="text-[10px] px-1.5 py-0.5 rounded border border-accent/40 text-accent hover:bg-accent/10 font-mono transition-colors">
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
             <input
               value={step.subject}
               onChange={e => onChange({ ...step, subject: e.target.value })}
@@ -120,7 +130,6 @@ function StepEditor({
               placeholder={`Cześć {{first_name}},\n\nZauważyłem, że {{company}} działa w branży...\n\nCzy masz 15 minut na krótką rozmowę?`}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 font-mono leading-relaxed"
             />
-            <p className="text-[10px] text-text-muted mt-1">Użyj przycisków wyżej, aby wstawić zmienne personalizacji.</p>
           </div>
         </div>
       </div>
@@ -185,16 +194,16 @@ function RecipientSelector({
           <span className="text-xs text-text-muted">z {leads.filter(l => l.email).length} łącznie</span>
         </div>
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
-          {filtered.slice(0, 8).map(l => (
+          {filtered.slice(0, 10).map(l => (
             <div key={l.id} className="flex items-center gap-2 text-xs text-text-secondary">
               <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
-              <span className="font-medium text-text-primary">{l.name}</span>
-              {l.company && <span className="text-text-muted">· {l.company}</span>}
-              <span className="ml-auto text-text-muted font-mono">{l.email}</span>
+              <span className="font-medium text-text-primary truncate max-w-[120px]">{l.name}</span>
+              {l.company && <span className="text-text-muted truncate">· {l.company}</span>}
+              <span className="ml-auto text-text-muted font-mono text-[10px] flex-shrink-0">{l.email}</span>
             </div>
           ))}
-          {filtered.length > 8 && (
-            <p className="text-xs text-text-muted pl-3.5">+ {filtered.length - 8} więcej...</p>
+          {filtered.length > 10 && (
+            <p className="text-xs text-text-muted pl-3.5">+ {filtered.length - 10} więcej...</p>
           )}
         </div>
       </div>
@@ -206,8 +215,11 @@ function RecipientSelector({
 
 const EMPTY_STEP: DraftStep = { subject: '', body_html: '', delay_days: 3 };
 
-function CampaignBuilderModal({ open, onClose, onSuccess }: {
-  open: boolean; onClose: () => void; onSuccess: () => void;
+function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  editCampaign?: any;
 }) {
   const { leads } = useLeads();
   const [wizardStep, setWizardStep] = useState(0);
@@ -219,6 +231,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [name, setName] = useState('');
   const [fromName, setFromName] = useState('');
   const [fromEmail, setFromEmail] = useState('');
+  const [signatureHtml, setSignatureHtml] = useState('');
   const [stopOnOpen, setStopOnOpen] = useState(false);
   const [stopOnReply, setStopOnReply] = useState(true);
   const [windowEnabled, setWindowEnabled] = useState(false);
@@ -229,10 +242,53 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterValue, setFilterValue] = useState('');
 
+  const isEditMode = !!editCampaign;
+  const isNonDraftEdit = isEditMode && editCampaign.status !== 'draft';
+  const WIZARD_STEPS = isNonDraftEdit
+    ? ['Ustawienia', 'Podsumowanie']
+    : ['Podstawy', 'Sekwencja', 'Odbiorcy', 'Podsumowanie'];
+
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (!open) return;
+    if (editCampaign) {
+      setWizardStep(0);
+      setName(editCampaign.name ?? '');
+      setFromName(editCampaign.from_name ?? '');
+      setFromEmail(editCampaign.from_email ?? '');
+      setSignatureHtml(editCampaign.signature_html ?? '');
+      setStopOnOpen(editCampaign.stop_on_open ?? false);
+      setStopOnReply(editCampaign.stop_on_reply ?? true);
+      if (editCampaign.send_window) {
+        setWindowEnabled(true);
+        setWindowDays(editCampaign.send_window.days ?? [1, 2, 3, 4, 5]);
+        setWindowFrom(editCampaign.send_window.from ?? '09:00');
+        setWindowTo(editCampaign.send_window.to ?? '17:00');
+      } else {
+        setWindowEnabled(false);
+        setWindowDays([1, 2, 3, 4, 5]);
+        setWindowFrom('09:00');
+        setWindowTo('17:00');
+      }
+      if (editCampaign.steps?.length) {
+        setSteps(
+          [...editCampaign.steps]
+            .sort((a: any, b: any) => a.step_order - b.step_order)
+            .map((s: any) => ({ subject: s.subject, body_html: s.body_html, delay_days: s.delay_days }))
+        );
+      }
+      if (editCampaign.recipient_filter) {
+        setFilterType(editCampaign.recipient_filter.type ?? 'all');
+        setFilterValue(editCampaign.recipient_filter.value ?? '');
+      }
+    } else {
+      setWizardStep(0);
+    }
+  }, [open, editCampaign?.id]);
+
   const sendTestEmail = async (idx: number) => {
     const step = steps[idx];
     if (!step.subject || !step.body_html) return;
-    if (!testEmail) { setTestMsg({ ok: false, text: 'Podaj adres email do testu' }); return; }
     setTestingIdx(idx); setTestMsg(null);
     const res = await fetch('/api/email-campaigns/test-send', {
       method: 'POST',
@@ -241,16 +297,17 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
     });
     const data = await res.json();
     setTestingIdx(null);
-    setTestMsg(res.ok ? { ok: true, text: 'Email testowy wysłany na Twój adres' } : { ok: false, text: data.error ?? 'Błąd wysyłki' });
+    setTestMsg(res.ok ? { ok: true, text: 'Email testowy wysłany' } : { ok: false, text: data.error ?? 'Błąd wysyłki' });
     setTimeout(() => setTestMsg(null), 5000);
   };
 
   const resetForm = () => {
-    setWizardStep(0); setName(''); setFromName(''); setFromEmail('');
+    setWizardStep(0); setName(''); setFromName(''); setFromEmail(''); setSignatureHtml('');
     setStopOnOpen(false); setStopOnReply(true);
-    setWindowEnabled(false); setWindowDays([1,2,3,4,5]); setWindowFrom('09:00'); setWindowTo('17:00');
+    setWindowEnabled(false); setWindowDays([1, 2, 3, 4, 5]); setWindowFrom('09:00'); setWindowTo('17:00');
     setSteps([{ ...EMPTY_STEP, delay_days: 0 }]);
     setFilterType('all'); setFilterValue(''); setError('');
+    setTestMsg(null);
   };
 
   const handleClose = () => { resetForm(); onClose(); };
@@ -266,33 +323,52 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
     return true;
   });
 
-  const canNext = [
-    name.trim() && fromName.trim() && fromEmail.trim(),
-    steps.every(s => s.subject.trim() && s.body_html.trim()),
-    filteredLeads.length > 0,
-  ];
+  const canNext = isNonDraftEdit
+    ? [name.trim() && fromName.trim() && fromEmail.trim(), true]
+    : [
+        name.trim() && fromName.trim() && fromEmail.trim(),
+        steps.every(s => s.subject.trim() && s.body_html.trim()),
+        filteredLeads.length > 0,
+      ];
 
   const handleSave = async (launch: boolean) => {
     setSaving(true); setError('');
     try {
-      const res = await fetch('/api/email-campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name, from_name: fromName, from_email: fromEmail,
-          stop_on_open: stopOnOpen, stop_on_reply: stopOnReply,
-          send_window: windowEnabled
-            ? { days: windowDays, from: windowFrom, to: windowTo, tz: 'Europe/Warsaw' }
-            : null,
-          recipient_filter: { type: filterType, value: filterValue || undefined },
-          steps,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Błąd zapisu');
+      const payload = {
+        name, from_name: fromName, from_email: fromEmail,
+        signature_html: signatureHtml.trim() || null,
+        stop_on_open: stopOnOpen, stop_on_reply: stopOnReply,
+        send_window: windowEnabled
+          ? { days: windowDays, from: windowFrom, to: windowTo, tz: 'Europe/Warsaw' }
+          : null,
+        recipient_filter: { type: filterType, value: filterValue || undefined },
+        steps,
+      };
+
+      let campaignId: string;
+
+      if (isEditMode) {
+        const res = await fetch(`/api/email-campaigns/${editCampaign.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Błąd zapisu');
+        campaignId = editCampaign.id;
+      } else {
+        const res = await fetch('/api/email-campaigns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Błąd zapisu');
+        campaignId = data.id;
+      }
 
       if (launch) {
-        const lr = await fetch(`/api/email-campaigns/${data.id}/launch`, { method: 'POST' });
+        const lr = await fetch(`/api/email-campaigns/${campaignId}/launch`, { method: 'POST' });
         const ld = await lr.json();
         if (!lr.ok) throw new Error(ld.error ?? 'Błąd uruchomienia');
       }
@@ -305,13 +381,18 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
     }
   };
 
-  const WIZARD_STEPS = ['Podstawy', 'Sekwencja', 'Odbiorcy', 'Podsumowanie'];
+  const summaryStep = WIZARD_STEPS.length - 1;
 
   return (
-    <Modal open={open} onClose={handleClose} title="Nowa kampania mailowa" size="xl">
-      <div className="flex flex-col h-[70vh]">
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title={isEditMode ? `Edytuj kampanię` : 'Nowa kampania mailowa'}
+      size="xl"
+    >
+      <div className="flex flex-col h-[72vh]">
         {/* Stepper */}
-        <div className="flex items-center gap-0 px-6 pt-4 pb-0 border-b border-border">
+        <div className="flex items-center gap-0 px-6 pt-4 pb-0 border-b border-border flex-shrink-0">
           {WIZARD_STEPS.map((label, i) => (
             <div key={i} className="flex items-center">
               <button
@@ -339,9 +420,16 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Step 0: Basics */}
+
+          {/* Settings / Podstawy — step 0 */}
           {wizardStep === 0 && (
             <div className="space-y-4">
+              {isNonDraftEdit && (
+                <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                  <Info size={14} className="mt-0.5 flex-shrink-0" />
+                  <span>Kampania jest <strong>{STATUS_CONFIG[editCampaign.status]?.label}</strong>. Możesz edytować nazwę, nadawcę i ustawienia. Kroki sekwencji i odbiorcy pozostają bez zmian.</span>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1.5">Nazwa kampanii</label>
                 <input value={name} onChange={e => setName(e.target.value)}
@@ -358,43 +446,42 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
                 <div>
                   <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1.5">Nadawca — email</label>
                   <input value={fromEmail} onChange={e => setFromEmail(e.target.value)}
-                    placeholder='np. dominik@twojadomena.pl'
-                    type="email"
+                    placeholder='np. dominik@twojadomena.pl' type="email"
                     className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1.5">Wizytówka / stopka</label>
+                <textarea
+                  value={signatureHtml}
+                  onChange={e => setSignatureHtml(e.target.value)}
+                  rows={3}
+                  placeholder={`np. Dominik Nowak\nCEO · AutomationHub\n+48 500 000 000`}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 font-mono leading-relaxed"
+                />
+                <p className="text-[10px] text-text-muted mt-1">Opcjonalne. Pojawi się między treścią a linkiem wypisania.</p>
               </div>
               <div>
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-2">Warunki zatrzymania sekwencji</label>
                 <div className="space-y-2">
                   {[
-                    { id: 'stop-open',  label: 'Zatrzymaj gdy odbiorca otworzy email',   value: stopOnOpen,  set: setStopOnOpen  },
-                    { id: 'stop-reply', label: 'Zatrzymaj gdy odbiorca kliknie "Odpowiedz"', value: stopOnReply, set: setStopOnReply },
+                    { id: 'stop-open',  label: 'Zatrzymaj gdy odbiorca otworzy email',       value: stopOnOpen,  set: setStopOnOpen  },
+                    { id: 'stop-reply', label: 'Zatrzymaj gdy odbiorca odpowie na email',     value: stopOnReply, set: setStopOnReply },
                   ].map(opt => (
                     <label key={opt.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-border-strong cursor-pointer transition-colors">
-                      <input
-                        type="checkbox"
-                        id={opt.id}
-                        checked={opt.value}
-                        onChange={e => opt.set(e.target.checked)}
-                        className="w-4 h-4 accent-accent"
-                      />
+                      <input type="checkbox" checked={opt.value} onChange={e => opt.set(e.target.checked)}
+                        className="w-4 h-4 accent-accent" />
                       <span className="text-sm text-text-primary">{opt.label}</span>
                     </label>
                   ))}
                 </div>
-                <p className="text-[10px] text-text-muted mt-1.5">Każdy email zawiera też automatyczny link do wypisania się (wymóg RODO).</p>
               </div>
-
               <div>
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-2">Okno wysyłki</label>
                 <label className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-border-strong cursor-pointer transition-colors mb-2">
-                  <input
-                    type="checkbox"
-                    checked={windowEnabled}
-                    onChange={e => setWindowEnabled(e.target.checked)}
-                    className="w-4 h-4 accent-accent"
-                  />
-                  <span className="text-sm text-text-primary">Ogranicz godziny i dni wysyłki</span>
+                  <input type="checkbox" checked={windowEnabled} onChange={e => setWindowEnabled(e.target.checked)}
+                    className="w-4 h-4 accent-accent" />
+                  <span className="text-sm text-text-primary">Ogranicz dni i godziny wysyłki</span>
                 </label>
                 {windowEnabled && (
                   <div className="p-3 border border-border rounded-xl space-y-3 bg-bg-subtle">
@@ -407,18 +494,10 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
                         ].map(({ d, label }) => {
                           const active = windowDays.includes(d);
                           return (
-                            <button
-                              key={d}
-                              type="button"
-                              onClick={() => setWindowDays(prev =>
-                                active ? prev.filter(x => x !== d) : [...prev, d]
-                              )}
-                              className={cn(
-                                'px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
-                                active
-                                  ? 'border-accent bg-accent text-white'
-                                  : 'border-border text-text-secondary hover:border-border-strong'
-                              )}>
+                            <button key={d} type="button"
+                              onClick={() => setWindowDays(prev => active ? prev.filter(x => x !== d) : [...prev, d])}
+                              className={cn('px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors',
+                                active ? 'border-accent bg-accent text-white' : 'border-border text-text-secondary hover:border-border-strong')}>
                               {label}
                             </button>
                           );
@@ -428,49 +507,35 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
                         <label className="text-xs text-text-muted block mb-1">Od godziny</label>
-                        <input
-                          type="time"
-                          value={windowFrom}
-                          onChange={e => setWindowFrom(e.target.value)}
-                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
-                        />
+                        <input type="time" value={windowFrom} onChange={e => setWindowFrom(e.target.value)}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30" />
                       </div>
                       <div className="flex-1">
                         <label className="text-xs text-text-muted block mb-1">Do godziny</label>
-                        <input
-                          type="time"
-                          value={windowTo}
-                          onChange={e => setWindowTo(e.target.value)}
-                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
-                        />
+                        <input type="time" value={windowTo} onChange={e => setWindowTo(e.target.value)}
+                          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30" />
                       </div>
                     </div>
-                    <p className="text-[10px] text-text-muted">Strefa czasowa: Europa/Warszawa. Emaile wysyłane tylko w zaznaczonych dniach i podanych godzinach.</p>
+                    <p className="text-[10px] text-text-muted">Strefa: Europa/Warszawa</p>
                   </div>
                 )}
-              </div>
-
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
-                <strong>Wskazówka:</strong> W Resend musisz zweryfikować domenę nadawcy, żeby emaile nie trafiały do spamu. Na czas testów możesz użyć <code>onboarding@resend.dev</code>.
               </div>
             </div>
           )}
 
-          {/* Step 1: Sequence */}
-          {wizardStep === 1 && (
+          {/* Sequence — step 1 (only new/draft edit) */}
+          {wizardStep === 1 && !isNonDraftEdit && (
             <div className="space-y-4">
-              <p className="text-xs text-text-muted">Zaprojektuj sekwencję emaili. Pierwszy wyślemy od razu po uruchomieniu, kolejne po zdefiniowanym opóźnieniu.</p>
-
-              {/* Test email bar */}
+              <p className="text-xs text-text-muted">Pierwszy email wysyłamy od razu, kolejne po zadanym opóźnieniu.</p>
               <div className="flex items-center gap-2 p-3 bg-bg-subtle border border-border rounded-xl">
-                <span className="text-xs text-text-muted">Testowy email zostanie wysłany na Twój adres konta.</span>
+                <span className="text-xs text-text-muted">Test wyśle email na Twój adres konta.</span>
                 {testMsg && (
-                  <span className={cn('ml-auto text-xs px-2 py-1 rounded-lg whitespace-nowrap flex-shrink-0', testMsg.ok ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50')}>
+                  <span className={cn('ml-auto text-xs px-2 py-1 rounded-lg whitespace-nowrap flex-shrink-0',
+                    testMsg.ok ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50')}>
                     {testMsg.text}
                   </span>
                 )}
               </div>
-
               {steps.map((step, i) => (
                 <div key={i}>
                   <StepEditor step={step} index={i} total={steps.length}
@@ -489,14 +554,14 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
               {steps.length < 5 && (
                 <button onClick={addStep}
                   className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-border rounded-xl text-sm text-text-muted hover:border-accent hover:text-accent transition-colors">
-                  <Plus size={14} /> Dodaj kolejny email do sekwencji
+                  <Plus size={14} /> Dodaj kolejny email
                 </button>
               )}
             </div>
           )}
 
-          {/* Step 2: Recipients */}
-          {wizardStep === 2 && (
+          {/* Recipients — step 2 (only new/draft edit) */}
+          {wizardStep === 2 && !isNonDraftEdit && (
             <RecipientSelector
               leads={leads}
               filterType={filterType}
@@ -505,32 +570,35 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
             />
           )}
 
-          {/* Step 3: Summary */}
-          {wizardStep === 3 && (
+          {/* Summary — last step */}
+          {wizardStep === summaryStep && (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Kampania', value: name },
-                  { label: 'Nadawca', value: `${fromName} <${fromEmail}>` },
-                  { label: 'Odbiorcy', value: `${filteredLeads.length} leadów` },
+                  { label: 'Kampania', value: name || '—' },
+                  { label: 'Nadawca', value: fromName ? `${fromName} <${fromEmail}>` : fromEmail || '—' },
+                  { label: 'Odbiorcy', value: isNonDraftEdit
+                    ? `${editCampaign.total_recipients ?? 0} leadów (bez zmian)`
+                    : `${filteredLeads.length} leadów` },
                 ].map(item => (
                   <div key={item.label} className="p-3 bg-bg-subtle border border-border rounded-xl">
                     <p className="text-xs text-text-muted mb-1">{item.label}</p>
-                    <p className="text-sm font-semibold text-text-primary truncate">{item.value}</p>
+                    <p className="text-sm font-semibold text-text-primary truncate" title={item.value}>{item.value}</p>
                   </div>
                 ))}
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Sekwencja — {steps.length} krok{steps.length === 1 ? '' : steps.length < 5 ? 'i' : 'ów'}</p>
+                <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+                  Sekwencja — {isNonDraftEdit ? (editCampaign.steps?.length ?? 0) : steps.length} krok{steps.length === 1 ? '' : steps.length < 5 ? 'i' : 'ów'}
+                </p>
                 <div className="space-y-2">
-                  {steps.map((s, i) => (
+                  {(isNonDraftEdit ? editCampaign.steps?.sort((a: any, b: any) => a.step_order - b.step_order) : steps).map((s: any, i: number) => (
                     <div key={i} className="flex items-start gap-3 p-3 bg-bg-subtle border border-border rounded-xl">
                       <span className="w-6 h-6 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary truncate">{s.subject || <span className="italic text-text-muted">Brak tematu</span>}</p>
-                        {i > 0 && <p className="text-xs text-text-muted">po {s.delay_days} dniach</p>}
-                        {i === 0 && <p className="text-xs text-text-muted">wysyłany od razu</p>}
+                        <p className="text-sm font-medium text-text-primary truncate">{(s.subject || s.subject) || <span className="italic text-text-muted">Brak tematu</span>}</p>
+                        <p className="text-xs text-text-muted">{i === 0 ? 'Wysyłany od razu' : `po ${s.delay_days || s.delay_days} dniach`}</p>
                       </div>
                     </div>
                   ))}
@@ -544,17 +612,24 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
           )}
         </div>
 
-        {/* Footer nav */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-subtle">
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-subtle flex-shrink-0">
           <Button variant="ghost" size="sm" onClick={wizardStep === 0 ? handleClose : () => setWizardStep(s => s - 1)}>
             {wizardStep === 0 ? 'Anuluj' : 'Wstecz'}
           </Button>
           <div className="flex gap-2">
-            {wizardStep < WIZARD_STEPS.length - 1 ? (
+            {wizardStep < summaryStep ? (
               <Button variant="primary" size="sm"
                 disabled={!canNext[wizardStep]}
                 onClick={() => setWizardStep(s => s + 1)}>
                 Dalej <ArrowRight size={13} />
+              </Button>
+            ) : isEditMode ? (
+              <Button variant="primary" size="sm" disabled={saving} onClick={() => handleSave(false)}>
+                {saving ? <span className="flex items-center gap-2">
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Zapisuję...
+                </span> : 'Zapisz zmiany'}
               </Button>
             ) : (
               <>
@@ -582,12 +657,19 @@ function CampaignBuilderModal({ open, onClose, onSuccess }: {
 
 // ─── Campaign Detail Modal ────────────────────────────────────────────────────
 
-function CampaignDetailModal({ campaign, open, onClose, onRefresh }: {
-  campaign: EmailCampaign | null; open: boolean; onClose: () => void; onRefresh: () => void;
+type DetailTab = 'stats' | 'recipients' | 'sequence';
+
+function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
+  campaign: EmailCampaign | null;
+  open: boolean;
+  onClose: () => void;
+  onRefresh: () => void;
+  onEdit: () => void;
 }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [detail, setDetail] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailTab>('stats');
 
   const loadDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
@@ -596,183 +678,293 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh }: {
     setLoadingDetail(false);
   }, []);
 
-  if (open && campaign && !detail && !loadingDetail) loadDetail(campaign.id);
-  if (!open && detail) setDetail(null);
+  useEffect(() => {
+    if (open && campaign) {
+      setDetail(null);
+      setActiveTab('stats');
+      loadDetail(campaign.id);
+    } else if (!open) {
+      setDetail(null);
+    }
+  }, [open, campaign?.id]);
 
-  const handlePause = async () => {
+  const handlePauseToggle = async () => {
     if (!campaign) return;
     setActionLoading(true);
     await fetch(`/api/email-campaigns/${campaign.id}/pause`, { method: 'POST' });
-    setActionLoading(false); onRefresh();
+    setActionLoading(false);
+    onRefresh();
     await loadDetail(campaign.id);
   };
 
   const handleProcess = async () => {
     setActionLoading(true);
     await fetch('/api/email-campaigns/process', { method: 'POST' });
-    setActionLoading(false); onRefresh();
+    setActionLoading(false);
+    onRefresh();
     if (campaign) await loadDetail(campaign.id);
   };
 
   const cfg = campaign ? STATUS_CONFIG[campaign.status] : null;
 
+  const tabs: { id: DetailTab; label: string; icon: any }[] = [
+    { id: 'stats',      label: 'Statystyki',                      icon: TrendingUp },
+    { id: 'recipients', label: `Odbiorcy (${detail?.recipients?.length ?? campaign?.total_recipients ?? 0})`, icon: Users },
+    { id: 'sequence',   label: `Sekwencja (${detail?.steps?.length ?? campaign?.steps?.length ?? 0})`,        icon: List  },
+  ];
+
   return (
-    <Modal open={open} onClose={onClose} title={campaign?.name ?? ''} size="xl">
-      <div className="p-6 space-y-6">
-        {/* Header stats */}
-        {campaign && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'Wysłane',    value: campaign.sent_count,       icon: Send,          color: 'text-blue-500'    },
-                { label: 'Dostarczono',value: campaign.delivered_count,  icon: CheckCircle2,  color: 'text-emerald-400' },
-                { label: 'Otwarte',    value: campaign.opened_count,     icon: Eye,           color: 'text-emerald-500' },
-              ].map(stat => (
-                <div key={stat.label} className="p-3 bg-bg-subtle border border-border rounded-xl text-center">
-                  <stat.icon size={15} className={cn('mx-auto mb-1', stat.color)} />
-                  <p className="text-xl font-bold text-text-primary">{stat.value}</p>
-                  <p className="text-xs text-text-muted">{stat.label}</p>
-                  {stat.label !== 'Wysłane' && campaign.sent_count > 0 && (
-                    <p className="text-[10px] text-text-muted">{Math.round((stat.value / campaign.sent_count) * 100)}%</p>
-                  )}
-                </div>
-              ))}
+    <Modal open={open} onClose={onClose} title="" className="!max-w-3xl">
+      {campaign && (
+        <div className="flex flex-col h-[78vh]">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-border flex-shrink-0">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h2 className="text-base font-semibold text-text-primary">{campaign.name}</h2>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-medium flex-shrink-0"
+                  style={{ color: cfg!.color, background: cfg!.bg, border: `1px solid ${cfg!.border}` }}>
+                  {cfg!.label}
+                </span>
+              </div>
+              <p className="text-xs text-text-muted mt-0.5 font-mono">{campaign.from_name} &lt;{campaign.from_email}&gt;</p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: 'Kliknięcia',  value: campaign.clicked_count,   icon: BarChart2,     color: 'text-indigo-500' },
-                { label: 'Odpowiedzi',  value: campaign.replied_count,   icon: CheckCircle2,  color: 'text-violet-500' },
-                { label: 'Odbitki',     value: campaign.bounced_count,   icon: AlertCircle,   color: 'text-red-400'    },
-              ].map(stat => (
-                <div key={stat.label} className="p-3 bg-bg-subtle border border-border rounded-xl text-center">
-                  <stat.icon size={15} className={cn('mx-auto mb-1', stat.color)} />
-                  <p className="text-xl font-bold text-text-primary">{stat.value}</p>
-                  <p className="text-xs text-text-muted">{stat.label}</p>
-                  {campaign.sent_count > 0 && (
-                    <p className="text-[10px] text-text-muted">{Math.round((stat.value / campaign.sent_count) * 100)}%</p>
-                  )}
-                </div>
-              ))}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {campaign.status === 'active' && (
+                <button onClick={handlePauseToggle} disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors disabled:opacity-50">
+                  <Pause size={12} /> Wstrzymaj
+                </button>
+              )}
+              {campaign.status === 'paused' && (
+                <button onClick={handlePauseToggle} disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50">
+                  <Play size={12} /> Wznów
+                </button>
+              )}
+              {(campaign.status === 'active' || campaign.status === 'paused') && (
+                <button onClick={handleProcess} disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:text-text-primary hover:border-border-strong transition-colors disabled:opacity-50"
+                  title="Wymuś przetwarzanie zaległych wysyłek">
+                  <RefreshCw size={12} className={actionLoading ? 'animate-spin' : ''} /> Odśwież
+                </button>
+              )}
+              <button onClick={onEdit}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:text-text-primary hover:border-border-strong transition-colors">
+                <Edit2 size={12} /> Edytuj
+              </button>
+              <button onClick={onClose} className="p-1.5 rounded-md hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors">
+                <X size={16} />
+              </button>
             </div>
-            {(campaign.stop_on_open || campaign.stop_on_reply || campaign.send_window) && (
-              <div className="flex gap-2 flex-wrap">
-                {campaign.stop_on_open  && <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Stop po otwarciu</span>}
-                {campaign.stop_on_reply && <span className="text-xs px-2 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Stop po odpowiedzi</span>}
-                {campaign.send_window   && (() => {
-                  const DAY = ['Ndz','Pon','Wt','Śr','Czw','Pt','Sob'];
-                  const days = campaign.send_window.days.sort((a: number, b: number) => a - b).map((d: number) => DAY[d]).join(', ');
-                  return (
-                    <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                      {days} · {campaign.send_window.from}–{campaign.send_window.to}
-                    </span>
-                  );
-                })()}
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-0 px-6 border-b border-border flex-shrink-0">
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  activeTab === tab.id
+                    ? 'border-accent text-accent'
+                    : 'border-transparent text-text-muted hover:text-text-secondary'
+                )}>
+                <tab.icon size={13} />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto p-6 min-h-0">
+            {/* Stats tab */}
+            {activeTab === 'stats' && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Wysłane',     value: campaign.sent_count,       icon: Send,         color: 'text-blue-500',    pct: false },
+                    { label: 'Dostarczono', value: campaign.delivered_count,  icon: CheckCircle2, color: 'text-emerald-400', pct: true  },
+                    { label: 'Otwarte',     value: campaign.opened_count,     icon: Eye,          color: 'text-emerald-600', pct: true  },
+                    { label: 'Kliknięcia',  value: campaign.clicked_count,    icon: BarChart2,    color: 'text-indigo-500',  pct: true  },
+                    { label: 'Odpowiedzi',  value: campaign.replied_count,    icon: CheckCircle2, color: 'text-violet-500',  pct: true  },
+                    { label: 'Odbitki',     value: campaign.bounced_count,    icon: AlertCircle,  color: 'text-red-400',     pct: true  },
+                  ].map(stat => (
+                    <div key={stat.label} className="p-4 bg-bg-subtle border border-border rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <stat.icon size={14} className={stat.color} />
+                        {stat.pct && campaign.sent_count > 0 && (
+                          <span className="text-xs text-text-muted">{Math.round((stat.value / campaign.sent_count) * 100)}%</span>
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold text-text-primary">{stat.value}</p>
+                      <p className="text-xs text-text-muted mt-0.5">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {campaign.total_recipients > 0 && campaign.status !== 'draft' && (
+                  <div className="p-4 bg-bg-subtle border border-border rounded-xl">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-text-secondary">Postęp wysyłki</span>
+                      <span className="font-semibold text-text-primary">
+                        {campaign.sent_count} / {campaign.total_recipients}
+                        <span className="text-text-muted font-normal ml-1">({Math.round((campaign.sent_count / campaign.total_recipients) * 100)}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-bg-base rounded-full overflow-hidden border border-border">
+                      <div className="h-full bg-accent rounded-full transition-all"
+                        style={{ width: `${Math.round((campaign.sent_count / campaign.total_recipients) * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {(campaign.stop_on_open || campaign.stop_on_reply || campaign.send_window) && (
+                  <div>
+                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Ustawienia</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {campaign.stop_on_open  && <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Stop po otwarciu</span>}
+                      {campaign.stop_on_reply && <span className="text-xs px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Stop po odpowiedzi</span>}
+                      {campaign.send_window   && (() => {
+                        const DAY = ['Ndz', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
+                        const days = campaign.send_window.days.sort((a: number, b: number) => a - b).map((d: number) => DAY[d]).join(', ');
+                        return (
+                          <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            {days} · {campaign.send_window.from}–{campaign.send_window.to}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Recipients tab */}
+            {activeTab === 'recipients' && (
+              <div>
+                {loadingDetail ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-border">
+                    <table className="w-full text-sm min-w-[580px]">
+                      <thead>
+                        <tr className="bg-bg-subtle border-b border-border">
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted whitespace-nowrap">Lead</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted whitespace-nowrap">Email</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted whitespace-nowrap">Status</th>
+                          <th className="text-center px-4 py-3 text-xs font-semibold text-text-muted whitespace-nowrap">Krok</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-text-muted whitespace-nowrap">Następna wysyłka</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {(detail?.recipients ?? []).slice(0, 50).map((r: any) => {
+                          const rCfg = RECIPIENT_STATUS_CONFIG[r.status as RecipientStatus];
+                          return (
+                            <tr key={r.id} className="hover:bg-bg-subtle/60 transition-colors">
+                              <td className="px-4 py-3 font-medium text-text-primary whitespace-nowrap">
+                                {r.lead?.name ?? '—'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-text-muted font-mono text-xs">{r.lead?.email ?? '—'}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2 whitespace-nowrap">
+                                  <span className={cn('w-2 h-2 rounded-full flex-shrink-0', rCfg?.dot ?? 'bg-slate-300')} />
+                                  <span className="text-xs text-text-secondary">{rCfg?.label ?? r.status}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-center text-xs text-text-muted">
+                                {r.current_step}/{detail?.steps?.length ?? '?'}
+                              </td>
+                              <td className="px-4 py-3 text-xs text-text-muted whitespace-nowrap">
+                                {r.next_send_at
+                                  ? new Date(r.next_send_at).toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' })
+                                  : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {(detail?.recipients ?? []).length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-10 text-center text-sm text-text-muted">
+                              Brak odbiorców
+                            </td>
+                          </tr>
+                        )}
+                        {(detail?.recipients ?? []).length > 50 && (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-3 text-center text-xs text-text-muted">
+                              Pokazano 50 z {detail.recipients.length} odbiorców
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sequence tab */}
+            {activeTab === 'sequence' && (
+              <div className="space-y-3">
+                {loadingDetail && !detail ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  (detail?.steps ?? campaign.steps ?? [])
+                    .sort((a: any, b: any) => a.step_order - b.step_order)
+                    .map((s: any, i: number, arr: any[]) => (
+                      <div key={s.id ?? i}>
+                        {i > 0 && (
+                          <div className="flex items-center gap-2 my-2 pl-4 text-xs text-text-muted">
+                            <div className="w-px h-5 bg-border ml-3" />
+                            <Clock size={11} />
+                            <span>po {s.delay_days} dniach</span>
+                          </div>
+                        )}
+                        <div className="border border-border rounded-xl overflow-hidden">
+                          <div className="flex items-center gap-3 px-4 py-3 bg-bg-subtle border-b border-border">
+                            <span className="w-6 h-6 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                              {i + 1}
+                            </span>
+                            <p className="text-sm font-semibold text-text-primary truncate flex-1">{s.subject}</p>
+                            {i === 0 && <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">Od razu</span>}
+                          </div>
+                          <div className="px-4 py-3">
+                            <p className="text-xs text-text-muted font-mono whitespace-pre-wrap leading-relaxed line-clamp-4">
+                              {s.body_html}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                )}
+                {(detail?.steps ?? campaign.steps ?? []).length === 0 && (
+                  <p className="text-sm text-text-muted text-center py-10">Brak kroków sekwencji</p>
+                )}
               </div>
             )}
           </div>
-        )}
-
-        {/* Sequence steps */}
-        {detail?.steps && (
-          <div>
-            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Sekwencja</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              {detail.steps.sort((a: any, b: any) => a.step_order - b.step_order).map((s: any, i: number) => (
-                <div key={s.id} className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 px-3 py-2 bg-bg-subtle border border-border rounded-lg">
-                    <span className="w-5 h-5 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">{i + 1}</span>
-                    <div>
-                      <p className="text-xs font-medium text-text-primary">{s.subject}</p>
-                      {i > 0 && <p className="text-[10px] text-text-muted">po {s.delay_days}d</p>}
-                    </div>
-                  </div>
-                  {i < detail.steps.length - 1 && <ArrowRight size={12} className="text-text-muted" />}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Recipients */}
-        <div>
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Odbiorcy</p>
-          {loadingDetail ? (
-            <div className="flex items-center justify-center h-20">
-              <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <div className="border border-border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-bg-subtle border-b border-border">
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">Lead</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">Email</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">Status</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">Krok</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">Następny</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(detail?.recipients ?? []).slice(0, 20).map((r: any) => {
-                    const rCfg = RECIPIENT_STATUS_CONFIG[r.status as RecipientStatus];
-                    return (
-                      <tr key={r.id} className="border-b border-border last:border-0 hover:bg-bg-subtle/50">
-                        <td className="px-4 py-2.5 font-medium text-text-primary">{r.lead?.name ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-text-muted font-mono text-xs">{r.lead?.email ?? '—'}</td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className={cn('w-1.5 h-1.5 rounded-full', rCfg?.dot ?? 'bg-slate-300')} />
-                            <span className="text-xs text-text-secondary">{rCfg?.label ?? r.status}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2.5 text-text-muted text-xs">{r.current_step}/{detail?.steps?.length ?? '?'}</td>
-                        <td className="px-4 py-2.5 text-text-muted text-xs">
-                          {r.next_send_at ? new Date(r.next_send_at).toLocaleDateString('pl-PL') : '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {(detail?.recipients ?? []).length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-text-muted">Brak odbiorców</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
-
-        {/* Actions */}
-        <div className="flex gap-2 pt-2">
-          {campaign?.status === 'active' && (
-            <Button variant="outline" size="sm" onClick={handlePause} disabled={actionLoading}>
-              <Pause size={13} /> Pauza
-            </Button>
-          )}
-          {campaign?.status === 'paused' && (
-            <Button variant="primary" size="sm" onClick={handlePause} disabled={actionLoading}>
-              <Play size={13} /> Wznów
-            </Button>
-          )}
-          {(campaign?.status === 'active' || campaign?.status === 'paused') && (
-            <Button variant="outline" size="sm" onClick={handleProcess} disabled={actionLoading}>
-              <RefreshCw size={13} /> Sprawdź zaległe wysyłki
-            </Button>
-          )}
-        </div>
-      </div>
+      )}
     </Modal>
   );
 }
 
 // ─── Campaign Card ────────────────────────────────────────────────────────────
 
-function CampaignCard({ campaign, onOpen, onLaunch, onRefresh }: {
+function CampaignCard({ campaign, onOpen, onEdit, onRefresh }: {
   campaign: EmailCampaign;
   onOpen: () => void;
-  onLaunch: () => void;
+  onEdit: () => void;
   onRefresh: () => void;
 }) {
   const [launching, setLaunching] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const cfg = STATUS_CONFIG[campaign.status];
   const stepsCount = campaign.steps?.length ?? 0;
@@ -789,9 +981,17 @@ function CampaignCard({ campaign, onOpen, onLaunch, onRefresh }: {
     onRefresh();
   };
 
+  const handlePauseToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPausing(true);
+    await fetch(`/api/email-campaigns/${campaign.id}/pause`, { method: 'POST' });
+    setPausing(false);
+    onRefresh();
+  };
+
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Usunąć kampanię?')) return;
+    if (!confirm('Usunąć kampanię? Tej operacji nie można cofnąć.')) return;
     setDeleting(true);
     await fetch(`/api/email-campaigns/${campaign.id}`, { method: 'DELETE' });
     setDeleting(false);
@@ -801,56 +1001,98 @@ function CampaignCard({ campaign, onOpen, onLaunch, onRefresh }: {
   return (
     <div
       onClick={onOpen}
-      className="bg-bg-base border border-border rounded-xl p-4 hover:border-accent/40 hover:shadow-sm transition-all cursor-pointer group">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-text-primary truncate">{campaign.name}</h3>
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0"
-              style={{ color: cfg.color, background: cfg.bg }}>
-              {cfg.label}
-            </span>
-          </div>
-          <p className="text-xs text-text-muted mb-3">
-            <span className="font-mono">{campaign.from_email}</span>
-            {stepsCount > 0 && <> · {stepsCount} krok{stepsCount === 1 ? '' : stepsCount < 5 ? 'i' : 'ów'}</>}
-          </p>
+      className="bg-bg-base border border-border rounded-xl p-5 hover:border-accent/50 hover:shadow-sm transition-all cursor-pointer">
 
+      <div className="flex items-start gap-4">
+        {/* Status strip */}
+        <div className="w-1 self-stretch rounded-full flex-shrink-0 mt-0.5"
+          style={{ background: cfg.color, opacity: 0.6 }} />
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <h3 className="text-sm font-semibold text-text-primary">{campaign.name}</h3>
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                  style={{ color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                  {cfg.label}
+                </span>
+              </div>
+              <p className="text-xs text-text-muted">
+                <span className="font-mono">{campaign.from_name} &lt;{campaign.from_email}&gt;</span>
+                {stepsCount > 0 && <span className="text-border mx-1.5">·</span>}
+                {stepsCount > 0 && <span>{stepsCount} krok{stepsCount === 1 ? '' : stepsCount < 5 ? 'i' : 'ów'}</span>}
+                {campaign.total_recipients > 0 && <span className="text-border mx-1.5">·</span>}
+                {campaign.total_recipients > 0 && <span>{campaign.total_recipients} odbiorców</span>}
+              </p>
+            </div>
+
+            {/* Action buttons — always visible */}
+            <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+              {campaign.status === 'draft' && (
+                <button onClick={handleLaunch} disabled={launching}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-accent text-white hover:bg-accent/90 transition-colors disabled:opacity-60">
+                  {launching
+                    ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><Send size={11} /> Uruchom</>}
+                </button>
+              )}
+              {campaign.status === 'active' && (
+                <button onClick={handlePauseToggle} disabled={pausing}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                  title="Wstrzymaj kampanię">
+                  {pausing
+                    ? <span className="w-3 h-3 border-2 border-amber-400/30 border-t-amber-600 rounded-full animate-spin" />
+                    : <><Pause size={11} /> Wstrzymaj</>}
+                </button>
+              )}
+              {campaign.status === 'paused' && (
+                <button onClick={handlePauseToggle} disabled={pausing}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-60"
+                  title="Wznów kampanię">
+                  {pausing
+                    ? <span className="w-3 h-3 border-2 border-emerald-400/30 border-t-emerald-600 rounded-full animate-spin" />
+                    : <><Play size={11} /> Wznów</>}
+                </button>
+              )}
+              <button onClick={e => { e.stopPropagation(); onEdit(); }}
+                className="p-1.5 rounded-lg border border-border text-text-muted hover:text-text-primary hover:border-border-strong transition-colors"
+                title="Edytuj kampanię">
+                <Edit2 size={13} />
+              </button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="p-1.5 rounded-lg border border-border text-text-muted hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-50"
+                title="Usuń kampanię">
+                {deleting
+                  ? <span className="w-3 h-3 border-2 border-slate-300/30 border-t-slate-500 rounded-full animate-spin block" />
+                  : <Trash2 size={13} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Progress bar for non-draft */}
           {campaign.status !== 'draft' && campaign.total_recipients > 0 && (
-            <div className="space-y-2">
+            <div className="mt-3 space-y-1.5">
               <div className="flex items-center justify-between text-xs text-text-muted">
                 <span>{campaign.sent_count} / {campaign.total_recipients} wysłanych</span>
-                <span>{sentPct}%</span>
+                <span className="font-semibold text-text-primary">{sentPct}%</span>
               </div>
               <div className="w-full h-1.5 bg-bg-subtle rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${sentPct}%` }} />
+                <div className="h-full bg-accent rounded-full transition-all duration-500"
+                  style={{ width: `${sentPct}%` }} />
               </div>
-              <div className="flex gap-4 text-xs">
-                <span className="text-emerald-600"><strong>{openRate}%</strong> otwarte</span>
+              <div className="flex items-center gap-4 text-xs pt-0.5">
+                <span className="text-emerald-600 font-medium">{openRate}% otwarte</span>
                 {campaign.replied_count > 0 && (
-                  <span className="text-violet-600"><strong>{campaign.replied_count}</strong> odpowiedzi</span>
+                  <span className="text-violet-600">{campaign.replied_count} odpowiedzi</span>
                 )}
                 {campaign.bounced_count > 0 && (
-                  <span className="text-red-500"><strong>{campaign.bounced_count}</strong> odbitek</span>
+                  <span className="text-red-500">{campaign.bounced_count} odbitek</span>
                 )}
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {campaign.status === 'draft' && (
-            <Button variant="primary" size="sm" onClick={handleLaunch} disabled={launching}
-              className="opacity-0 group-hover:opacity-100 transition-opacity">
-              {launching
-                ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <><Send size={12} /> Uruchom</>}
-            </Button>
-          )}
-          <button onClick={handleDelete} disabled={deleting}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-red-500 p-1 rounded">
-            <Trash2 size={14} />
-          </button>
         </div>
       </div>
     </div>
@@ -862,10 +1104,30 @@ function CampaignCard({ campaign, onOpen, onLaunch, onRefresh }: {
 export default function MarketingPage() {
   const { campaigns, loading, refetch } = useEmailCampaigns();
   const [showBuilder, setShowBuilder] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<any>(null);
   const [detailCampaign, setDetailCampaign] = useState<EmailCampaign | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState<string | null>(null);
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
+  const pausedCampaigns = campaigns.filter(c => c.status === 'paused').length;
   const totalSent = campaigns.reduce((s, c) => s + c.sent_count, 0);
+
+  const handleOpenEdit = async (campaignId: string) => {
+    setLoadingEdit(campaignId);
+    const res = await fetch(`/api/email-campaigns/${campaignId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setEditingCampaign(data);
+      setDetailCampaign(null);
+      setShowBuilder(true);
+    }
+    setLoadingEdit(null);
+  };
+
+  const handleCloseBuilder = () => {
+    setShowBuilder(false);
+    setEditingCampaign(null);
+  };
 
   if (loading) {
     return (
@@ -876,48 +1138,67 @@ export default function MarketingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
+      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text-primary">Email Outreach</h1>
-          <p className="text-xs text-text-muted mt-0.5">Kampanie mailowe — sekwencje, śledzenie, personalizacja</p>
+          <p className="text-xs text-text-muted mt-0.5">Sekwencje mailowe · śledzenie otwarć · personalizacja</p>
         </div>
-        <Button variant="primary" size="sm" onClick={() => setShowBuilder(true)}>
+        <Button variant="primary" size="sm" onClick={() => { setEditingCampaign(null); setShowBuilder(true); }}>
           <Plus size={14} /> Nowa kampania
         </Button>
       </div>
 
       {/* Summary strip */}
       {campaigns.length > 0 && (
-        <div className="flex items-center gap-4 text-xs text-text-muted">
-          <span className="flex items-center gap-1.5">
-            <Zap size={12} className="text-emerald-500" />
-            <strong className="text-text-primary">{activeCampaigns}</strong> aktywne
-          </span>
+        <div className="flex items-center gap-4 p-4 bg-bg-subtle border border-border rounded-xl text-sm flex-wrap">
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-emerald-500" />
+            <span className="text-text-muted">Aktywne:</span>
+            <strong className="text-text-primary">{activeCampaigns}</strong>
+          </div>
+          {pausedCampaigns > 0 && (
+            <>
+              <span className="text-border">·</span>
+              <div className="flex items-center gap-2">
+                <Pause size={13} className="text-amber-500" />
+                <span className="text-text-muted">Wstrzymane:</span>
+                <strong className="text-text-primary">{pausedCampaigns}</strong>
+              </div>
+            </>
+          )}
           <span className="text-border">·</span>
-          <span className="flex items-center gap-1.5">
-            <Send size={12} className="text-blue-500" />
-            <strong className="text-text-primary">{totalSent.toLocaleString('pl-PL')}</strong> wysłanych łącznie
-          </span>
-          <span className="text-border">·</span>
-          <span>Kliknij kampanię, aby zobaczyć szczegółowe statystyki</span>
+          <div className="flex items-center gap-2">
+            <Send size={13} className="text-blue-500" />
+            <span className="text-text-muted">Wysłano łącznie:</span>
+            <strong className="text-text-primary">{totalSent.toLocaleString('pl-PL')}</strong>
+          </div>
         </div>
       )}
 
       {/* Campaign list */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-text-primary">Kampanie ({campaigns.length})</h2>
-          <button onClick={refetch} className="text-text-muted hover:text-text-primary transition-colors">
-            <RefreshCw size={14} />
+          <h2 className="text-sm font-semibold text-text-primary">
+            Kampanie
+            <span className="ml-2 text-xs font-normal text-text-muted">({campaigns.length})</span>
+          </h2>
+          <button onClick={refetch}
+            className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors p-1.5 rounded hover:bg-bg-subtle">
+            <RefreshCw size={13} /> Odśwież
           </button>
         </div>
 
         {campaigns.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 border border-dashed border-border rounded-2xl">
-            <Mail size={32} className="text-text-muted mb-3" />
-            <p className="text-sm font-medium text-text-secondary mb-1">Brak kampanii</p>
-            <p className="text-xs text-text-muted mb-4">Stwórz pierwszą sekwencję mailową i wyślij do leadów z CRM</p>
+          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-border rounded-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-bg-subtle border border-border flex items-center justify-center mb-4">
+              <Mail size={22} className="text-text-muted" />
+            </div>
+            <p className="text-sm font-semibold text-text-secondary mb-1">Brak kampanii</p>
+            <p className="text-xs text-text-muted mb-5 text-center max-w-xs">
+              Stwórz pierwszą sekwencję mailową i wyślij do leadów z CRM
+            </p>
             <Button variant="primary" size="sm" onClick={() => setShowBuilder(true)}>
               <Plus size={13} /> Nowa kampania
             </Button>
@@ -929,7 +1210,7 @@ export default function MarketingPage() {
                 key={c.id}
                 campaign={c}
                 onOpen={() => setDetailCampaign(c)}
-                onLaunch={() => {}}
+                onEdit={() => handleOpenEdit(c.id)}
                 onRefresh={refetch}
               />
             ))}
@@ -939,8 +1220,9 @@ export default function MarketingPage() {
 
       <CampaignBuilderModal
         open={showBuilder}
-        onClose={() => setShowBuilder(false)}
-        onSuccess={refetch}
+        onClose={handleCloseBuilder}
+        onSuccess={() => { refetch(); handleCloseBuilder(); }}
+        editCampaign={editingCampaign}
       />
 
       <CampaignDetailModal
@@ -948,7 +1230,18 @@ export default function MarketingPage() {
         open={!!detailCampaign}
         onClose={() => setDetailCampaign(null)}
         onRefresh={refetch}
+        onEdit={() => detailCampaign && handleOpenEdit(detailCampaign.id)}
       />
+
+      {/* Loading overlay for edit fetch */}
+      {loadingEdit && (
+        <div className="fixed inset-0 z-[998] bg-black/20 flex items-center justify-center">
+          <div className="bg-bg-base border border-border rounded-xl px-5 py-3 flex items-center gap-3 shadow-xl">
+            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-text-primary">Ładowanie kampanii...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

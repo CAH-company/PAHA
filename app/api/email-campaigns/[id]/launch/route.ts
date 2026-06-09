@@ -77,7 +77,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
 
     const subject  = applyVars(step1.subject, lead);
     const bodyText = applyVars(step1.body_html, lead);
-    const html     = buildHtml(bodyText, rec.id, appUrl);
+    const html     = buildHtml(bodyText, rec.id, appUrl, campaign.signature_html);
 
     let resendId: string | null = null;
     let sendStatus = 'sent';
