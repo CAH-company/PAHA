@@ -31,9 +31,17 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Publiczne API — chronione własnym sekretem, nie sesją
-  const publicApi = ['/api/email-campaigns/cron', '/api/meta-ads/sync', '/api/email-campaigns/webhook', '/api/email-campaigns/track', '/api/email-campaigns/unsubscribe', '/api/webhooks/'];
-  if (publicApi.some(p => pathname.startsWith(p))) {
+  // Publiczne API — chronione własnym sekretem, nie sesją (exact match)
+  const publicApi = new Set([
+    '/api/email-campaigns/cron',
+    '/api/email-campaigns/webhook',
+    '/api/email-campaigns/track',
+    '/api/email-campaigns/unsubscribe',
+    '/api/meta-ads/sync',
+    '/api/webhooks/fathom',
+    '/api/webhooks/lead',
+  ]);
+  if (publicApi.has(pathname)) {
     return supabaseResponse;
   }
 
