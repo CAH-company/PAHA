@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
+import { getResendKey } from '@/lib/get-resend-key';
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -17,8 +19,10 @@ export async function POST(req: NextRequest) {
   const to = user.email;
   if (!to) return NextResponse.json({ error: 'Brak emaila użytkownika' }, { status: 400 });
 
-  if (!process.env.RESEND_API_KEY) {
-    return NextResponse.json({ error: 'Brak RESEND_API_KEY — skonfiguruj Resend w ustawieniach lub zmiennych środowiskowych.' }, { status: 422 });
+  const admin = createAdminClient();
+  const resendKey = await getResendKey(admin);
+  if (!resendKey) {
+    return NextResponse.json({ error: 'Brak RESEND_API_KEY — skonfiguruj Resend w Ustawieniach → Email.' }, { status: 422 });
   }
 
   // Podmień zmienne na dane testowe
@@ -43,7 +47,7 @@ export async function POST(req: NextRequest) {
     </div>
   `;
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = new Resend(resendKey);
   try {
     const { data, error } = await resend.emails.send({
       from: `${from_name || 'Test'} <${from_email}>`,

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
 import { applyVars, buildHtml, isInWindow } from '@/lib/email-campaign-utils';
+import { getResendKey } from '@/lib/get-resend-key';
 
 export async function POST() {
   const supabase = await createClient();
@@ -33,6 +34,7 @@ export async function POST() {
 
   if (!ownedDue.length) return NextResponse.json({ ok: true, processed: 0, skipped: 0 });
 
+  const resendKey = await getResendKey(admin);
   let processed = 0;
   let skipped = 0;
 
@@ -64,8 +66,8 @@ export async function POST() {
     let resendId: string | null = null;
     let sendStatus = 'sent';
 
-    if (process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
+    if (resendKey) {
+      const resend = new Resend(resendKey);
       try {
         const { data: r } = await resend.emails.send({
           from: `${campaign.from_name} <${campaign.from_email}>`,

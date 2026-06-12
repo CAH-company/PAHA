@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
 import { applyVars, buildHtml, isInWindow } from '@/lib/email-campaign-utils';
+import { getResendKey } from '@/lib/get-resend-key';
 
 export async function POST(_: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -54,6 +55,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
   const step1 = steps[0];
   const now = new Date();
   const inWindow = isInWindow(campaign.send_window ?? null, now);
+  const resendKey = await getResendKey(admin);
   let sentCount = 0;
 
   for (const rec of recipients ?? []) {
@@ -82,8 +84,8 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     let resendId: string | null = null;
     let sendStatus = 'sent';
 
-    if (process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
+    if (resendKey) {
+      const resend = new Resend(resendKey);
       try {
         const { data: r } = await resend.emails.send({
           from: `${campaign.from_name} <${campaign.from_email}>`,
