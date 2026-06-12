@@ -31,6 +31,12 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // Publiczne API — chronione własnym sekretem, nie sesją
+  const publicApi = ['/api/email-campaigns/cron', '/api/meta-ads/sync', '/api/email-campaigns/webhook', '/api/email-campaigns/track', '/api/email-campaigns/unsubscribe', '/api/webhooks/'];
+  if (publicApi.some(p => pathname.startsWith(p))) {
+    return supabaseResponse;
+  }
+
   // Redirect unauthenticated users away from protected routes
   if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/auth')) {
     const url = request.nextUrl.clone();
