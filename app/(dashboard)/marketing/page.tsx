@@ -238,6 +238,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
   const [windowDays, setWindowDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [windowFrom, setWindowFrom] = useState('09:00');
   const [windowTo, setWindowTo] = useState('17:00');
+  const [dailyLimit, setDailyLimit] = useState(50);
   const [steps, setSteps] = useState<DraftStep[]>([{ ...EMPTY_STEP, delay_days: 0 }]);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterValue, setFilterValue] = useState('');
@@ -259,6 +260,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
       setSignatureHtml(editCampaign.signature_html ?? '');
       setStopOnOpen(editCampaign.stop_on_open ?? false);
       setStopOnReply(editCampaign.stop_on_reply ?? true);
+      setDailyLimit(editCampaign.daily_limit ?? 50);
       if (editCampaign.send_window) {
         setWindowEnabled(true);
         setWindowDays(editCampaign.send_window.days ?? [1, 2, 3, 4, 5]);
@@ -305,6 +307,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
     setWizardStep(0); setName(''); setFromName(''); setFromEmail(''); setSignatureHtml('');
     setStopOnOpen(false); setStopOnReply(true);
     setWindowEnabled(false); setWindowDays([1, 2, 3, 4, 5]); setWindowFrom('09:00'); setWindowTo('17:00');
+    setDailyLimit(50);
     setSteps([{ ...EMPTY_STEP, delay_days: 0 }]);
     setFilterType('all'); setFilterValue(''); setError('');
     setTestMsg(null);
@@ -346,6 +349,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
           ? { days: windowDays, from: windowFrom, to: windowTo, tz: 'Europe/Warsaw' }
           : null,
         recipient_filter: { type: filterType, value: filterValue || undefined },
+        daily_limit: dailyLimit,
         steps,
       };
 
@@ -479,6 +483,19 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
                     </label>
                   ))}
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1.5">Limit dzienny</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number" min={1} max={500}
+                    value={dailyLimit}
+                    onChange={e => setDailyLimit(Math.max(1, Number(e.target.value)))}
+                    className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <span className="text-sm text-text-muted">emaili / dzień dla tej kampanii</span>
+                </div>
+                <p className="text-[10px] text-text-muted mt-1">Cron wysyła co godzinę — limit pilnuje żeby nie wysłać wszystkich naraz.</p>
               </div>
               <div>
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-2">Okno wysyłki</label>

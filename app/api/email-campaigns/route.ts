@@ -40,11 +40,12 @@ export async function POST(req: NextRequest) {
     stop_on_reply = false,
     send_window = null,
     signature_html = null,
+    daily_limit = 50,
   } = body;
 
   const { data: campaign, error: campErr } = await admin
     .from('email_campaigns')
-    .insert({ name, from_name, from_email, signature_html, recipient_filter: recipient_filter ?? { type: 'all' }, stop_on_open, stop_on_reply, send_window, created_by: emp?.id })
+    .insert({ name, from_name, from_email, signature_html, recipient_filter: recipient_filter ?? { type: 'all' }, stop_on_open, stop_on_reply, send_window, daily_limit, created_by: emp?.id })
     .select()
     .single();
 

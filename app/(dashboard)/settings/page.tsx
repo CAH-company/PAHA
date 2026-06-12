@@ -472,7 +472,7 @@ function SecuritySection() {
 }
 
 function EmailSection() {
-  const KEYS = ['resend_api_key', 'resend_from_email', 'resend_from_name', 'resend_reply_to', 'resend_webhook_secret'];
+  const KEYS = ['resend_api_key', 'resend_from_email', 'resend_from_name', 'resend_reply_to', 'resend_webhook_secret', 'campaign_max_per_run'];
   const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -490,6 +490,7 @@ function EmailSection() {
       { key: 'resend_from_name',      value: data.resend_from_name      ?? '', label: 'Nazwa nadawcy' },
       { key: 'resend_reply_to',       value: data.resend_reply_to       ?? '', label: 'Reply-To' },
       { key: 'resend_webhook_secret', value: data.resend_webhook_secret ?? '', is_secret: true, label: 'Resend Webhook Secret' },
+      { key: 'campaign_max_per_run',  value: data.campaign_max_per_run  ?? '50', label: 'Maks emaili / uruchomienie' },
     ]);
     setSaving(false);
     if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
@@ -541,6 +542,22 @@ function EmailSection() {
           value={data.resend_webhook_secret ?? ''}
           onChange={v => set('resend_webhook_secret', v)}
         />
+      </div>
+
+      <div className="border-t border-border pt-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-text-secondary mb-1">Kampanie — limity wysyłki</p>
+          <p className="text-xs text-text-muted mb-3">Cron uruchamia się co godzinę. Globalny limit kontroluje ile emaili łącznie (we wszystkich kampaniach) wyśle w jednym uruchomieniu.</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="number" min={1} max={1000}
+              value={data.campaign_max_per_run ?? '50'}
+              onChange={e => set('campaign_max_per_run', e.target.value)}
+              className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+            <span className="text-sm text-text-muted">emaili / uruchomienie crona (globalnie)</span>
+          </div>
+        </div>
       </div>
 
       <SaveRow onSave={save} saving={saving} saved={saved} error={error} />
