@@ -97,16 +97,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
       } catch {
         sendStatus = 'failed';
       }
-    } else {
-      console.log(`[DEV] Would send to ${lead.email}: ${subject}`);
     }
-
-    await admin.from('email_campaign_recipients').update({
-      status: 'active',
-      current_step: 1,
-      last_sent_at: now.toISOString(),
-      next_send_at: nextSendAt,
-    }).eq('id', rec.id);
 
     await admin.from('email_campaign_sends').insert({
       campaign_id: campaign.id,
@@ -118,7 +109,24 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
       resend_id: resendId,
     });
 
-    if (sendStatus === 'sent') sentCount++;
+    if (sendStatus === 'failed') {
+      // Nieudana wysyłka — zostaw na kroku 0, cron ponowi przy następnym uruchomieniu
+      await admin.from('email_campaign_recipients').update({
+        status: 'active',
+        current_step: 0,
+        next_send_at: now.toISOString(),
+      }).eq('id', rec.id);
+      continue;
+    }
+
+    await admin.from('email_campaign_recipients').update({
+      status: nextSendAt ? 'active' : 'completed',
+      current_step: 1,
+      last_sent_at: now.toISOString(),
+      next_send_at: nextSendAt,
+    }).eq('id', rec.id);
+
+    sentCount++;
   }
 
   await admin.from('email_campaigns').update({

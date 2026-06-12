@@ -691,6 +691,8 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
   const [detail, setDetail] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailTab>('stats');
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
 
   const loadDetail = useCallback(async (id: string) => {
     setLoadingDetail(true);
@@ -726,6 +728,19 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
     if (campaign) await loadDetail(campaign.id);
   };
 
+  const handleReset = async () => {
+    if (!campaign) return;
+    setActionLoading(true);
+    setResetConfirm(false);
+    const res = await fetch(`/api/email-campaigns/${campaign.id}/reset`, { method: 'POST' });
+    const msg = res.ok ? 'Kampania zresetowana — cron wyśle emaile przy najbliższym uruchomieniu.' : 'Błąd resetowania';
+    setResetMsg(msg);
+    setTimeout(() => setResetMsg(null), 6000);
+    setActionLoading(false);
+    onRefresh();
+    await loadDetail(campaign.id);
+  };
+
   const cfg = campaign ? STATUS_CONFIG[campaign.status] : null;
 
   const tabs: { id: DetailTab; label: string; icon: any }[] = [
@@ -749,6 +764,9 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
                 </span>
               </div>
               <p className="text-xs text-text-muted mt-0.5 font-mono">{campaign.from_name} &lt;{campaign.from_email}&gt;</p>
+              {resetMsg && (
+                <p className="text-xs text-emerald-600 mt-1">{resetMsg}</p>
+              )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {campaign.status === 'active' && (
@@ -763,11 +781,31 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
                   <Play size={12} /> Wznów
                 </button>
               )}
-              {(campaign.status === 'active' || campaign.status === 'paused') && (
+              {(campaign.status === 'active' || campaign.status === 'paused') && !resetConfirm && (
+                <button onClick={() => setResetConfirm(true)} disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
+                  title="Resetuje odbiorców do kroku 0 i wymusza ponowne wysłanie wszystkich emaili">
+                  <RefreshCw size={12} /> Resetuj
+                </button>
+              )}
+              {resetConfirm && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-red-600 font-medium">Na pewno? Emaile zostaną wysłane ponownie.</span>
+                  <button onClick={handleReset} disabled={actionLoading}
+                    className="px-2.5 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+                    Tak, resetuj
+                  </button>
+                  <button onClick={() => setResetConfirm(false)}
+                    className="px-2.5 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:border-border-strong transition-colors">
+                    Anuluj
+                  </button>
+                </div>
+              )}
+              {(campaign.status === 'active' || campaign.status === 'paused') && !resetConfirm && (
                 <button onClick={handleProcess} disabled={actionLoading}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:text-text-primary hover:border-border-strong transition-colors disabled:opacity-50"
-                  title="Wymuś przetwarzanie zaległych wysyłek">
-                  <RefreshCw size={12} className={actionLoading ? 'animate-spin' : ''} /> Odśwież
+                  title="Wymuś przetwarzanie zaległych wysyłek teraz">
+                  <RefreshCw size={12} className={actionLoading ? 'animate-spin' : ''} /> Wyślij teraz
                 </button>
               )}
               <button onClick={onEdit}
@@ -839,24 +877,26 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
                   </div>
                 )}
 
-                {(campaign.stop_on_open || campaign.stop_on_reply || campaign.send_window) && (
-                  <div>
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Ustawienia</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {campaign.stop_on_open  && <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Stop po otwarciu</span>}
-                      {campaign.stop_on_reply && <span className="text-xs px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Stop po odpowiedzi</span>}
-                      {campaign.send_window   && (() => {
-                        const DAY = ['Ndz', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
-                        const days = campaign.send_window.days.sort((a: number, b: number) => a - b).map((d: number) => DAY[d]).join(', ');
-                        return (
-                          <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                            {days} · {campaign.send_window.from}–{campaign.send_window.to}
-                          </span>
-                        );
-                      })()}
-                    </div>
+                <div>
+                  <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Ustawienia kampanii</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-bg-subtle text-text-secondary border border-border">
+                      Limit: {(campaign as any).daily_limit ?? 50} emaili/dzień
+                    </span>
+                    {campaign.stop_on_open  && <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">Stop po otwarciu</span>}
+                    {campaign.stop_on_reply && <span className="text-xs px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200">Stop po odpowiedzi</span>}
+                    {campaign.send_window   && (() => {
+                      const DAY = ['Ndz', 'Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob'];
+                      const days = campaign.send_window.days.sort((a: number, b: number) => a - b).map((d: number) => DAY[d]).join(', ');
+                      return (
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          {days} · {campaign.send_window.from}–{campaign.send_window.to}
+                        </span>
+                      );
+                    })()}
                   </div>
-                )}
+                  <p className="text-[10px] text-text-muted mt-2">Zmień limit i okno wysyłki klikając <strong>Edytuj</strong>.</p>
+                </div>
               </div>
             )}
 
