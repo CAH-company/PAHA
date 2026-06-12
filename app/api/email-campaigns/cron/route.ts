@@ -8,7 +8,8 @@ export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers.get('authorization');
-    if (auth !== `Bearer ${cronSecret}`) {
+    const querySecret = req.nextUrl.searchParams.get('secret');
+    if (auth !== `Bearer ${cronSecret}` && querySecret !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
