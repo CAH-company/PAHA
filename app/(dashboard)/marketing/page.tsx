@@ -750,76 +750,85 @@ function CampaignDetailModal({ campaign, open, onClose, onRefresh, onEdit }: {
   ];
 
   return (
-    <Modal open={open} onClose={onClose} title="" className="!max-w-3xl">
+    <Modal open={open} onClose={onClose} title="" className="!max-w-3xl" hideClose>
       {campaign && (
         <div className="flex flex-col h-[78vh]">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-border flex-shrink-0">
+
+          {/* ── Nagłówek ── */}
+          <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-3 flex-shrink-0">
             <div className="min-w-0">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-base font-semibold text-text-primary">{campaign.name}</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-semibold text-text-primary truncate">{campaign.name}</h2>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-medium flex-shrink-0"
                   style={{ color: cfg!.color, background: cfg!.bg, border: `1px solid ${cfg!.border}` }}>
                   {cfg!.label}
                 </span>
               </div>
-              <p className="text-xs text-text-muted mt-0.5 font-mono">{campaign.from_name} &lt;{campaign.from_email}&gt;</p>
-              {resetMsg && (
-                <p className="text-xs text-emerald-600 mt-1">{resetMsg}</p>
-              )}
+              <p className="text-xs text-text-muted font-mono mt-0.5 truncate">{campaign.from_name} &lt;{campaign.from_email}&gt;</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {campaign.status === 'active' && (
-                <button onClick={handlePauseToggle} disabled={actionLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors disabled:opacity-50">
-                  <Pause size={12} /> Wstrzymaj
-                </button>
-              )}
-              {campaign.status === 'paused' && (
-                <button onClick={handlePauseToggle} disabled={actionLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50">
-                  <Play size={12} /> Wznów
-                </button>
-              )}
-              {(campaign.status === 'active' || campaign.status === 'paused') && !resetConfirm && (
-                <button onClick={() => setResetConfirm(true)} disabled={actionLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50"
-                  title="Resetuje odbiorców do kroku 0 i wymusza ponowne wysłanie wszystkich emaili">
-                  <RefreshCw size={12} /> Resetuj
-                </button>
-              )}
-              {resetConfirm && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-red-600 font-medium">Na pewno? Emaile zostaną wysłane ponownie.</span>
-                  <button onClick={handleReset} disabled={actionLoading}
-                    className="px-2.5 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
-                    Tak, resetuj
-                  </button>
-                  <button onClick={() => setResetConfirm(false)}
-                    className="px-2.5 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:border-border-strong transition-colors">
-                    Anuluj
-                  </button>
-                </div>
-              )}
-              {(campaign.status === 'active' || campaign.status === 'paused') && !resetConfirm && (
-                <button onClick={handleProcess} disabled={actionLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:text-text-primary hover:border-border-strong transition-colors disabled:opacity-50"
-                  title="Wymuś przetwarzanie zaległych wysyłek teraz">
-                  <RefreshCw size={12} className={actionLoading ? 'animate-spin' : ''} /> Wyślij teraz
-                </button>
-              )}
               <button onClick={onEdit}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-muted text-xs font-medium hover:text-text-primary hover:border-border-strong transition-colors">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs font-medium hover:border-border-strong hover:text-text-primary transition-colors">
                 <Edit2 size={12} /> Edytuj
               </button>
-              <button onClick={onClose} className="p-1.5 rounded-md hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors">
-                <X size={16} />
+              <button onClick={onClose}
+                className="p-1.5 rounded-md border border-border hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors">
+                <X size={15} />
               </button>
             </div>
           </div>
 
+          {/* ── Pasek akcji ── */}
+          {(campaign.status === 'active' || campaign.status === 'paused') && (
+            <div className="px-6 pb-3 flex-shrink-0">
+              {!resetConfirm ? (
+                <div className="flex items-center gap-2 p-3 bg-bg-subtle border border-border rounded-xl">
+                  {campaign.status === 'active' && (
+                    <button onClick={handlePauseToggle} disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors disabled:opacity-50">
+                      <Pause size={12} /> Wstrzymaj
+                    </button>
+                  )}
+                  {campaign.status === 'paused' && (
+                    <button onClick={handlePauseToggle} disabled={actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 transition-colors disabled:opacity-50">
+                      <Play size={12} /> Wznów
+                    </button>
+                  )}
+                  <button onClick={handleProcess} disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-bg-base text-text-secondary text-xs font-medium hover:border-border-strong hover:text-text-primary transition-colors disabled:opacity-50">
+                    <RefreshCw size={12} className={actionLoading ? 'animate-spin' : ''} />
+                    Wyślij zaległe teraz
+                  </button>
+                  <button onClick={() => setResetConfirm(true)} disabled={actionLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors disabled:opacity-50">
+                    <RefreshCw size={12} /> Resetuj kampanię
+                  </button>
+                  {resetMsg && <span className="ml-auto text-xs text-emerald-600 font-medium">{resetMsg}</span>}
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <AlertCircle size={15} className="text-red-500 flex-shrink-0" />
+                  <span className="text-xs text-red-700 font-medium flex-1">
+                    Resetuj kampanię? Wszyscy odbiorcy wrócą do kroku 1 — emaile zostaną wysłane od nowa.
+                  </span>
+                  <button onClick={handleReset} disabled={actionLoading}
+                    className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors disabled:opacity-50">
+                    Tak, resetuj
+                  </button>
+                  <button onClick={() => setResetConfirm(false)}
+                    className="px-3 py-1.5 rounded-lg border border-border bg-white text-text-secondary text-xs font-medium hover:border-border-strong transition-colors">
+                    Anuluj
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="border-t border-border flex-shrink-0" />
+
           {/* Tabs */}
-          <div className="flex gap-0 px-6 border-b border-border flex-shrink-0">
+          <div className="flex gap-0 px-6 border-b border-border flex-shrink-0 -mt-px">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={cn(

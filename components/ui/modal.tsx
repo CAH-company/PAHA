@@ -12,6 +12,7 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  hideClose?: boolean;
 }
 
 const sizes = {
@@ -21,7 +22,7 @@ const sizes = {
   xl: 'max-w-2xl',
 };
 
-export function Modal({ open, onClose, title, children, size = 'md', className }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'md', className, hideClose = false }: ModalProps) {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     if (open) document.addEventListener('keydown', handleKey);
@@ -50,15 +51,14 @@ export function Modal({ open, onClose, title, children, size = 'md', className }
         {title && (
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
             <h2 className="text-base font-semibold text-text-primary">{title}</h2>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors"
-            >
-              <X size={16} />
-            </button>
+            {!hideClose && (
+              <button onClick={onClose} className="p-1.5 rounded-md hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors">
+                <X size={16} />
+              </button>
+            )}
           </div>
         )}
-        {!title && (
+        {!title && !hideClose && (
           <button
             onClick={onClose}
             className="absolute right-4 top-4 p-1.5 rounded-md hover:bg-bg-muted text-text-muted hover:text-text-primary transition-colors z-10"
