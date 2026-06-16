@@ -56,9 +56,32 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
   const now = new Date();
   const inWindow = isInWindow(campaign.send_window ?? null, now);
   const resendKey = await getResendKey(admin);
+  const dailyLimit = campaign.daily_limit ?? 50;
   let sentCount = 0;
 
-  for (const rec of recipients ?? []) {
+  const allRecipients = recipients ?? [];
+
+  if (!inWindow) {
+    // Outside window — queue everyone; cron will pick up when in window
+    const ids = allRecipients.map((r: any) => r.id);
+    if (ids.length) {
+      await admin.from('email_campaign_recipients')
+        .update({ status: 'active', current_step: 0, next_send_at: now.toISOString() })
+        .in('id', ids);
+    }
+  } else {
+    // Queue recipients beyond daily_limit immediately; cron picks them up next run
+    const overflow = allRecipients.slice(dailyLimit);
+    if (overflow.length) {
+      await admin.from('email_campaign_recipients')
+        .update({ status: 'active', current_step: 0, next_send_at: now.toISOString() })
+        .in('id', overflow.map((r: any) => r.id));
+    }
+  }
+
+  const toSendNow = inWindow ? allRecipients.slice(0, dailyLimit) : [];
+
+  for (const rec of toSendNow) {
     const lead = validLeads.find((l: any) => l.id === rec.lead_id);
     if (!lead?.email) continue;
 
@@ -66,16 +89,6 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     const nextSendAt = nextStep
       ? new Date(now.getTime() + nextStep.delay_days * 86400000).toISOString()
       : null;
-
-    if (!inWindow) {
-      // Outside window — mark active but schedule first send for next process run
-      await admin.from('email_campaign_recipients').update({
-        status: 'active',
-        current_step: 0,
-        next_send_at: now.toISOString(),
-      }).eq('id', rec.id);
-      continue;
-    }
 
     const subject  = applyVars(step1.subject, lead);
     const bodyText = applyVars(step1.body_html, lead);

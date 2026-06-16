@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
   let processed = 0;
   let skipped = 0;
   let globalSent = 0;
+  const sentCountDelta: Record<string, number> = {};
 
   for (const rec of activeDue) {
     if (globalSent >= globalLimit) break;
@@ -143,16 +144,20 @@ export async function GET(req: NextRequest) {
       resend_id: resendId,
     });
 
-    await admin
-      .from('email_campaigns')
-      .update({ sent_count: (campaign.sent_count ?? 0) + 1 })
-      .eq('id', rec.campaign_id);
-
     if (sendStatus === 'sent') {
       sentTodayCache[rec.campaign_id] = (sentTodayCache[rec.campaign_id] ?? 0) + 1;
+      sentCountDelta[rec.campaign_id] = (sentCountDelta[rec.campaign_id] ?? 0) + 1;
       globalSent++;
     }
     processed++;
+  }
+
+  // Update sent_count once per campaign with accurate delta (avoids stale-read race)
+  for (const [cid, delta] of Object.entries(sentCountDelta)) {
+    const { data: camp } = await admin.from('email_campaigns').select('sent_count').eq('id', cid).single();
+    await admin.from('email_campaigns')
+      .update({ sent_count: (camp?.sent_count ?? 0) + delta })
+      .eq('id', cid);
   }
 
   return NextResponse.json({ ok: true, processed, skipped, globalSent });
