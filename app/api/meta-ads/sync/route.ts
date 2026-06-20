@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const META_API = 'https://graph.facebook.com/v19.0';
-const FIELDS = 'campaign_id,campaign_name,status,objective,impressions,clicks,spend,reach,frequency,ctr,cpm,cpc,actions';
+const FIELDS = 'campaign_id,campaign_name,objective,impressions,clicks,spend,reach,frequency,ctr,cpm,cpc,actions';
 
 function getDateRange(days: number) {
   const until = new Date();
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       date:              r.date_start,
       campaign_id:       r.campaign_id,
       campaign_name:     r.campaign_name,
-      status:            r.status ?? null,
+      status:            null,
       objective:         r.objective ?? null,
       impressions:       parseInt(r.impressions ?? '0', 10),
       clicks:            parseInt(r.clicks ?? '0', 10),
