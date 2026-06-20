@@ -22,7 +22,7 @@ export interface Employee {
 }
 
 export type LeadStatus = 'new' | 'contacted' | 'offer_sent' | 'negotiation' | 'won' | 'lost';
-export type LeadSource = 'manual' | 'csv' | 'lemlist' | 'clay' | 'form';
+export type LeadSource = 'manual' | 'csv' | 'lemlist' | 'clay' | 'form' | 'meta';
 export type ContactStatus = 'not_contacted' | 'in_sequence' | 'replied' | 'bounced' | 'unsubscribed' | 'meeting_booked';
 
 export interface Lead {

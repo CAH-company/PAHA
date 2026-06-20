@@ -37,7 +37,7 @@ const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 };
 
 const SOURCE_LABELS: Record<LeadSource, string> = {
-  manual: 'Ręczny', csv: 'Import CSV', lemlist: 'Lemlist', clay: 'Clay', form: 'Formularz',
+  manual: 'Ręczny', csv: 'Import CSV', lemlist: 'Lemlist', clay: 'Clay', form: 'Formularz', meta: 'Meta Ads',
 };
 
 const VARS = ['{{name}}', '{{first_name}}', '{{company}}', '{{email}}'];
@@ -239,6 +239,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
   const [windowFrom, setWindowFrom] = useState('09:00');
   const [windowTo, setWindowTo] = useState('17:00');
   const [dailyLimit, setDailyLimit] = useState(50);
+  const [sendIntervalMinutes, setSendIntervalMinutes] = useState(20);
   const [steps, setSteps] = useState<DraftStep[]>([{ ...EMPTY_STEP, delay_days: 0 }]);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterValue, setFilterValue] = useState('');
@@ -261,6 +262,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
       setStopOnOpen(editCampaign.stop_on_open ?? false);
       setStopOnReply(editCampaign.stop_on_reply ?? true);
       setDailyLimit(editCampaign.daily_limit ?? 50);
+      setSendIntervalMinutes(editCampaign.send_interval_minutes ?? 20);
       if (editCampaign.send_window) {
         setWindowEnabled(true);
         setWindowDays(editCampaign.send_window.days ?? [1, 2, 3, 4, 5]);
@@ -307,7 +309,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
     setWizardStep(0); setName(''); setFromName(''); setFromEmail(''); setSignatureHtml('');
     setStopOnOpen(false); setStopOnReply(true);
     setWindowEnabled(false); setWindowDays([1, 2, 3, 4, 5]); setWindowFrom('09:00'); setWindowTo('17:00');
-    setDailyLimit(50);
+    setDailyLimit(50); setSendIntervalMinutes(20);
     setSteps([{ ...EMPTY_STEP, delay_days: 0 }]);
     setFilterType('all'); setFilterValue(''); setError('');
     setTestMsg(null);
@@ -350,6 +352,7 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
           : null,
         recipient_filter: { type: filterType, value: filterValue || undefined },
         daily_limit: dailyLimit,
+        send_interval_minutes: sendIntervalMinutes,
         steps,
       };
 
@@ -485,6 +488,24 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
                 </div>
               </div>
               <div>
+                <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1.5">Interwał między wysyłkami</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[5, 10, 20, 30, 60].map(m => (
+                    <button key={m} type="button"
+                      onClick={() => setSendIntervalMinutes(m)}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors',
+                        sendIntervalMinutes === m
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-border text-text-secondary hover:border-border-strong'
+                      )}>
+                      {m} min
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-text-muted mt-1">Odstęp między mailami do kolejnych leadów — chroni przed filtrami spamu.</p>
+              </div>
+              <div>
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-1.5">Limit dzienny</label>
                 <div className="flex items-center gap-3">
                   <input
@@ -495,7 +516,6 @@ function CampaignBuilderModal({ open, onClose, onSuccess, editCampaign }: {
                   />
                   <span className="text-sm text-text-muted">emaili / dzień dla tej kampanii</span>
                 </div>
-                <p className="text-[10px] text-text-muted mt-1">Cron wysyła co godzinę — limit pilnuje żeby nie wysłać wszystkich naraz.</p>
               </div>
               <div>
                 <label className="text-xs font-medium text-text-muted uppercase tracking-wider block mb-2">Okno wysyłki</label>

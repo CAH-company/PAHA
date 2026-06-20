@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const {
     name, from_name, from_email, signature_html,
     stop_on_open, stop_on_reply, send_window,
-    recipient_filter, steps, daily_limit,
+    recipient_filter, steps, daily_limit, send_interval_minutes,
   } = body;
 
   const { error: updErr } = await admin
@@ -66,6 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       send_window: send_window ?? null,
       recipient_filter: recipient_filter ?? { type: 'all' },
       daily_limit: daily_limit ?? 50,
+      send_interval_minutes: send_interval_minutes ?? 5,
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.id);

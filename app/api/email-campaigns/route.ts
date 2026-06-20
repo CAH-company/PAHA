@@ -41,11 +41,12 @@ export async function POST(req: NextRequest) {
     send_window = null,
     signature_html = null,
     daily_limit = 50,
+    send_interval_minutes = 5,
   } = body;
 
   const { data: campaign, error: campErr } = await admin
     .from('email_campaigns')
-    .insert({ name, from_name, from_email, signature_html, recipient_filter: recipient_filter ?? { type: 'all' }, stop_on_open, stop_on_reply, send_window, daily_limit, created_by: emp?.id })
+    .insert({ name, from_name, from_email, signature_html, recipient_filter: recipient_filter ?? { type: 'all' }, stop_on_open, stop_on_reply, send_window, daily_limit, send_interval_minutes, created_by: emp?.id })
     .select()
     .single();
 
