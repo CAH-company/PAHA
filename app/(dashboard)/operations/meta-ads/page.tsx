@@ -229,7 +229,7 @@ export default function MetaAdsPage() {
     const { since, until } = getRange(days);
     const res = await fetch(`/api/meta-ads/campaigns?since=${since}&until=${until}`);
     const data = await res.json();
-    if (data.error?.includes('Brak konfiguracji') || (!data.meta?.meta_access_token && !data.campaigns?.length)) {
+    if (data.error?.includes('Brak konfiguracji') || (!data.meta?.meta_account_id && !data.campaigns?.length)) {
       setNotConfigured(true);
     } else {
       setNotConfigured(false);
