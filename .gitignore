@@ -38,3 +38,4 @@ next-env.d.ts
 # local docs
 SETUP_GUIDE.html
 TESTING_GUIDE.html
+META_SETUP.md
