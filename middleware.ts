@@ -40,6 +40,7 @@ export async function middleware(request: NextRequest) {
     '/api/meta-ads/sync',
     '/api/webhooks/fathom',
     '/api/webhooks/lead',
+    '/api/webhooks/meta-lead',
   ]);
   if (publicApi.has(pathname)) {
     return supabaseResponse;
