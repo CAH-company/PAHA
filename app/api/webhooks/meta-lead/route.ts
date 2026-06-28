@@ -28,7 +28,18 @@ export async function GET(req: NextRequest) {
   const token     = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  const expectedToken = process.env.META_VERIFY_TOKEN;
+  // Check env var first, then fall back to app_settings in DB
+  let expectedToken = process.env.META_VERIFY_TOKEN ?? null;
+  if (!expectedToken) {
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'meta_verify_token')
+      .maybeSingle();
+    expectedToken = data?.value ?? null;
+  }
+
   if (!expectedToken) {
     return NextResponse.json({ error: 'META_VERIFY_TOKEN not configured' }, { status: 500 });
   }

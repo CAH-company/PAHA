@@ -67,22 +67,24 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string }> = {
 function SettingsModal({ open, onClose, onSaved }: {
   open: boolean; onClose: () => void; onSaved: () => void;
 }) {
-  const [token,     setToken]     = useState('');
-  const [accountId, setAccountId] = useState('');
-  const [syncTime,  setSyncTime]  = useState('06:00');
-  const [syncDays,  setSyncDays]  = useState('30');
-  const [saving,    setSaving]    = useState(false);
-  const [saved,     setSaved]     = useState(false);
-  const [loading,   setLoading]   = useState(true);
+  const [token,       setToken]       = useState('');
+  const [accountId,   setAccountId]   = useState('');
+  const [verifyToken, setVerifyToken] = useState('');
+  const [syncTime,    setSyncTime]    = useState('06:00');
+  const [syncDays,    setSyncDays]    = useState('30');
+  const [saving,      setSaving]      = useState(false);
+  const [saved,       setSaved]       = useState(false);
+  const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    fetch('/api/settings?keys=meta_access_token,meta_account_id,meta_sync_time,meta_sync_days')
+    fetch('/api/settings?keys=meta_access_token,meta_account_id,meta_verify_token,meta_sync_time,meta_sync_days')
       .then(r => r.json())
       .then(d => {
         setToken(d.meta_access_token ?? '');
         setAccountId(d.meta_account_id ?? '');
+        setVerifyToken(d.meta_verify_token ?? '');
         setSyncTime(d.meta_sync_time ?? '06:00');
         setSyncDays(d.meta_sync_days ?? '30');
         setLoading(false);
@@ -95,10 +97,11 @@ function SettingsModal({ open, onClose, onSaved }: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([
-        { key: 'meta_access_token', value: token,     is_secret: true, label: 'Meta Access Token' },
-        { key: 'meta_account_id',   value: accountId, label: 'Meta Ad Account ID' },
-        { key: 'meta_sync_time',    value: syncTime,  label: 'Meta Sync Time' },
-        { key: 'meta_sync_days',    value: syncDays,  label: 'Meta Sync Days' },
+        { key: 'meta_access_token', value: token,       is_secret: true, label: 'Meta Access Token' },
+        { key: 'meta_account_id',   value: accountId,   label: 'Meta Ad Account ID' },
+        { key: 'meta_verify_token', value: verifyToken, is_secret: true, label: 'Meta Webhook Verify Token' },
+        { key: 'meta_sync_time',    value: syncTime,    label: 'Meta Sync Time' },
+        { key: 'meta_sync_days',    value: syncDays,    label: 'Meta Sync Days' },
       ]),
     });
     setSaving(false);
@@ -151,6 +154,17 @@ function SettingsModal({ open, onClose, onSaved }: {
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
                 <p className="text-[10px] text-text-muted mt-1">Business Manager → Ad Accounts → ID (bez "act_")</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-muted block mb-1">Webhook Verify Token</label>
+                <input
+                  type="password"
+                  value={verifyToken}
+                  onChange={e => setVerifyToken(e.target.value)}
+                  placeholder="dowolny ciąg znaków, np. moj-sekretny-token-123"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"
+                />
+                <p className="text-[10px] text-text-muted mt-1">Wpisz ten sam token w panelu Meta → Webhooks → Verify Token</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
