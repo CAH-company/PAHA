@@ -3,7 +3,25 @@ import { createServiceClient } from '@/lib/supabase/service';
 
 export const runtime = 'nodejs';
 
-// GET — Meta webhook verification (hub challenge)
+const META_API_VERSION = 'v22.0';
+
+// Verifies X-Hub-Signature-256 header — required by Meta for all webhook POST deliveries.
+// Without this, anyone who knows the URL can inject fake leads.
+async function verifyMetaSignature(rawBody: string, signature: string | null): Promise<boolean> {
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret || !signature) return false;
+
+  const { createHmac, timingSafeEqual } = await import('crypto');
+  const expected = 'sha256=' + createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
+
+  const expectedBuf = Buffer.from(expected);
+  const receivedBuf = Buffer.from(signature);
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, receivedBuf);
+}
+
+// GET — Meta webhook verification (hub challenge).
+// Meta sends GET with hub.mode=subscribe to confirm your endpoint before activating the subscription.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode      = searchParams.get('hub.mode');
@@ -22,10 +40,25 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
-// POST — receive leadgen notification, fetch data from Meta Graph API, insert to CRM
+// POST — receive leadgen notification, fetch data from Meta Graph API, insert to CRM.
+// Meta sends POST for each new lead event after the subscription is verified.
 export async function POST(req: NextRequest) {
+  // Read raw body first — needed for signature verification before JSON.parse
+  const rawBody = await req.text();
+  const signature = req.headers.get('x-hub-signature-256');
+
+  const signatureOk = await verifyMetaSignature(rawBody, signature);
+  if (!signatureOk) {
+    // Reject if APP_SECRET is configured; log and pass through only if secret is missing (dev mode)
+    if (process.env.META_APP_SECRET) {
+      console.error('[meta-lead] Invalid X-Hub-Signature-256 — request rejected');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    console.warn('[meta-lead] META_APP_SECRET not configured — skipping signature check (set it in production!)');
+  }
+
   let body: any;
-  try { body = await req.json(); } catch { return NextResponse.json({ ok: true }); }
+  try { body = JSON.parse(rawBody); } catch { return NextResponse.json({ ok: true }); }
 
   // Meta expects 200 quickly — always respond ok, log errors internally
   if (body?.object !== 'page') return NextResponse.json({ ok: true });
@@ -47,7 +80,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const metaRes = await fetch(
-          `https://graph.facebook.com/v19.0/${leadgenId}?fields=field_data,created_time,ad_id,form_id,page_id&access_token=${accessToken}`
+          `https://graph.facebook.com/${META_API_VERSION}/${leadgenId}?fields=field_data,created_time,ad_id,form_id,page_id&access_token=${accessToken}`
         );
         const leadData = await metaRes.json();
 

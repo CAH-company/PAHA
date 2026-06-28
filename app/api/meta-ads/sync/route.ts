@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const META_API = 'https://graph.facebook.com/v19.0';
+const META_API = 'https://graph.facebook.com/v22.0';
 const FIELDS = 'campaign_id,campaign_name,objective,impressions,clicks,spend,reach,frequency,ctr,cpm,cpc,actions';
 
 function getDateRange(days: number) {
