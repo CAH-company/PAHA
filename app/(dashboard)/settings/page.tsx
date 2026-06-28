@@ -299,7 +299,7 @@ function AISection() {
 }
 
 function IntegrationsSection() {
-  const KEYS = ['fathom_webhook_secret', 'leads_webhook_secret'];
+  const KEYS = ['fathom_webhook_secret', 'leads_webhook_secret', 'meta_verify_token', 'meta_app_secret'];
   const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -307,13 +307,14 @@ function IntegrationsSection() {
 
   function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
 
-  async function saveKey(key: string, label: string, isSecret = true) {
-    setSaving(key);
-    setErrors(e => ({ ...e, [key]: '' }));
-    const ok = await saveSettings([{ key, value: data[key] ?? '', is_secret: isSecret, label }]);
+  async function saveKey(keys: { key: string; label: string }[]) {
+    const id = keys[0].key;
+    setSaving(id);
+    setErrors(e => ({ ...e, [id]: '' }));
+    const ok = await saveSettings(keys.map(k => ({ key: k.key, value: data[k.key] ?? '', is_secret: true, label: k.label })));
     setSaving(null);
-    if (ok) { setSaved(key); setTimeout(() => setSaved(null), 2500); }
-    else setErrors(e => ({ ...e, [key]: 'Błąd zapisu' }));
+    if (ok) { setSaved(id); setTimeout(() => setSaved(null), 2500); }
+    else setErrors(e => ({ ...e, [id]: 'Błąd zapisu' }));
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://twoja-domena.vercel.app';
@@ -348,41 +349,84 @@ function IntegrationsSection() {
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm"
             disabled={saving === 'fathom_webhook_secret'}
-            onClick={() => saveKey('fathom_webhook_secret', 'Fathom Webhook Secret')}>
+            onClick={() => saveKey([{ key: 'fathom_webhook_secret', label: 'Fathom Webhook Secret' }])}>
             {saving === 'fathom_webhook_secret' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
           </Button>
           {saved === 'fathom_webhook_secret' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
         </div>
       </div>
 
-      {/* Leads webhook */}
+      {/* Leads webhook — generic (Clay, Lemlist, Typeform, formularze) */}
       <div className="border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
             <Link2 size={14} className="text-orange-600" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-text-primary">Leads Webhook</p>
-            <p className="text-xs text-text-muted">Przyjmuje leady z zewnętrznych formularzy, Clay, Lemlist, Typeform</p>
+            <p className="text-sm font-semibold text-text-primary">CRM Webhook — ogólny</p>
+            <p className="text-xs text-text-muted">Przyjmuje leady z Clay, Lemlist, Typeform i własnych formularzy</p>
           </div>
         </div>
         <ReadonlyUrl
-          label="Webhook URL — wklej w swoim narzędziu"
+          label="Webhook URL"
           url={`${origin}/api/webhooks/lead`}
         />
         <SecretField
-          label="Sekret (opcjonalny)"
-          description="Jeśli ustawiony — wymagany w nagłówku x-api-key"
+          label="API Key (opcjonalny)"
+          description="Jeśli ustawiony — wymagany w nagłówku x-api-key przy każdym żądaniu"
           value={data.leads_webhook_secret ?? ''}
           onChange={v => set('leads_webhook_secret', v)}
         />
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm"
             disabled={saving === 'leads_webhook_secret'}
-            onClick={() => saveKey('leads_webhook_secret', 'Leads Webhook Secret')}>
+            onClick={() => saveKey([{ key: 'leads_webhook_secret', label: 'Leads Webhook Secret' }])}>
             {saving === 'leads_webhook_secret' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
           </Button>
           {saved === 'leads_webhook_secret' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
+        </div>
+      </div>
+
+      {/* Meta Lead Ads webhook */}
+      <div className="border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-text-primary">Meta Lead Ads</p>
+            <p className="text-xs text-text-muted">Automatycznie dodaje leady z formularzy Meta Lead Ads do CRM</p>
+          </div>
+        </div>
+        <ReadonlyUrl
+          label="Callback URL — wklej w Meta for Developers → Webhooks"
+          url={`${origin}/api/webhooks/meta-lead`}
+        />
+        <SecretField
+          label="Verify Token"
+          description="Dowolny tekst — wpisz ten sam token w panelu Meta przy konfiguracji webhooka"
+          value={data.meta_verify_token ?? ''}
+          onChange={v => set('meta_verify_token', v)}
+        />
+        <SecretField
+          label="App Secret"
+          description="Klucz tajny aplikacji z Meta for Developers → Twoja App → Ustawienia → Podstawowe"
+          value={data.meta_app_secret ?? ''}
+          onChange={v => set('meta_app_secret', v)}
+        />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm"
+            disabled={saving === 'meta_verify_token'}
+            onClick={() => saveKey([
+              { key: 'meta_verify_token', label: 'Meta Webhook Verify Token' },
+              { key: 'meta_app_secret',   label: 'Meta App Secret' },
+            ])}>
+            {saving === 'meta_verify_token' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
+          </Button>
+          {saved === 'meta_verify_token' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
+          {errors.meta_verify_token && <span className="text-xs text-red-500">{errors.meta_verify_token}</span>}
         </div>
       </div>
     </>

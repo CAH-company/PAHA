@@ -7,8 +7,12 @@ const META_API_VERSION = 'v22.0';
 
 // Verifies X-Hub-Signature-256 header — required by Meta for all webhook POST deliveries.
 // Without this, anyone who knows the URL can inject fake leads.
-async function verifyMetaSignature(rawBody: string, signature: string | null): Promise<boolean> {
-  const appSecret = process.env.META_APP_SECRET;
+async function verifyMetaSignature(rawBody: string, signature: string | null, supabase: ReturnType<typeof createServiceClient>): Promise<boolean> {
+  let appSecret = process.env.META_APP_SECRET ?? null;
+  if (!appSecret) {
+    const { data } = await supabase.from('app_settings').select('value').eq('key', 'meta_app_secret').maybeSingle();
+    appSecret = data?.value ?? null;
+  }
   if (!appSecret || !signature) return false;
 
   const { createHmac, timingSafeEqual } = await import('crypto');
@@ -58,14 +62,22 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const signature = req.headers.get('x-hub-signature-256');
 
-  const signatureOk = await verifyMetaSignature(rawBody, signature);
+  const supabase = createServiceClient();
+
+  const signatureOk = await verifyMetaSignature(rawBody, signature, supabase);
   if (!signatureOk) {
-    // Reject if APP_SECRET is configured; log and pass through only if secret is missing (dev mode)
-    if (process.env.META_APP_SECRET) {
+    const hasSecret = !!(process.env.META_APP_SECRET);
+    if (hasSecret) {
       console.error('[meta-lead] Invalid X-Hub-Signature-256 — request rejected');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
-    console.warn('[meta-lead] META_APP_SECRET not configured — skipping signature check (set it in production!)');
+    // No secret configured at all — check DB to decide whether to reject
+    const { data: secretRow } = await supabase.from('app_settings').select('value').eq('key', 'meta_app_secret').maybeSingle();
+    if (secretRow?.value) {
+      console.error('[meta-lead] Invalid X-Hub-Signature-256 — request rejected');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    console.warn('[meta-lead] meta_app_secret not configured — skipping signature check');
   }
 
   let body: any;
@@ -79,8 +91,6 @@ export async function POST(req: NextRequest) {
     console.error('[meta-lead] META_PAGE_ACCESS_TOKEN not configured');
     return NextResponse.json({ ok: true });
   }
-
-  const supabase = createServiceClient();
 
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
