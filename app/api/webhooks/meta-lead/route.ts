@@ -52,18 +52,7 @@ export async function GET(req: NextRequest) {
     return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
   }
 
-  // Temporary debug — remove after fixing
-  return NextResponse.json({
-    error: 'Verification failed',
-    debug: {
-      mode,
-      challenge: !!challenge,
-      token_received_length: token?.length ?? 0,
-      token_expected_length: expectedToken?.length ?? 0,
-      token_match: token === expectedToken,
-      expected_source: process.env.META_VERIFY_TOKEN ? 'env' : 'db',
-    },
-  }, { status: 403 });
+  return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
 // POST — receive leadgen notification, fetch data from Meta Graph API, insert to CRM.
