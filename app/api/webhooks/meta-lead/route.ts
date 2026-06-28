@@ -86,9 +86,13 @@ export async function POST(req: NextRequest) {
   // Meta expects 200 quickly — always respond ok, log errors internally
   if (body?.object !== 'page') return NextResponse.json({ ok: true });
 
-  const accessToken = process.env.META_PAGE_ACCESS_TOKEN;
+  let accessToken = process.env.META_PAGE_ACCESS_TOKEN ?? null;
   if (!accessToken) {
-    console.error('[meta-lead] META_PAGE_ACCESS_TOKEN not configured');
+    const { data } = await supabase.from('app_settings').select('value').eq('key', 'meta_page_access_token').maybeSingle();
+    accessToken = data?.value ?? null;
+  }
+  if (!accessToken) {
+    console.error('[meta-lead] meta_page_access_token not configured');
     return NextResponse.json({ ok: true });
   }
 

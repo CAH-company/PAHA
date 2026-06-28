@@ -299,7 +299,7 @@ function AISection() {
 }
 
 function IntegrationsSection() {
-  const KEYS = ['fathom_webhook_secret', 'leads_webhook_secret', 'meta_verify_token', 'meta_app_secret'];
+  const KEYS = ['fathom_webhook_secret', 'leads_webhook_secret', 'meta_verify_token', 'meta_app_secret', 'meta_page_access_token'];
   const { data, setData, loading } = useSetting(KEYS);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -416,12 +416,19 @@ function IntegrationsSection() {
           value={data.meta_app_secret ?? ''}
           onChange={v => set('meta_app_secret', v)}
         />
+        <SecretField
+          label="Page Access Token"
+          description="Token dostępu do Strony — Graph API Explorer → wybierz Stronę → wygeneruj token z uprawnieniem leads_retrieval"
+          value={data.meta_page_access_token ?? ''}
+          onChange={v => set('meta_page_access_token', v)}
+        />
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm"
             disabled={saving === 'meta_verify_token'}
             onClick={() => saveKey([
-              { key: 'meta_verify_token', label: 'Meta Webhook Verify Token' },
-              { key: 'meta_app_secret',   label: 'Meta App Secret' },
+              { key: 'meta_verify_token',      label: 'Meta Webhook Verify Token' },
+              { key: 'meta_app_secret',        label: 'Meta App Secret' },
+              { key: 'meta_page_access_token', label: 'Meta Page Access Token' },
             ])}>
             {saving === 'meta_verify_token' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
           </Button>
