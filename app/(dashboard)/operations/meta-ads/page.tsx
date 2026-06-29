@@ -67,21 +67,23 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string }> = {
 function SettingsModal({ open, onClose, onSaved }: {
   open: boolean; onClose: () => void; onSaved: () => void;
 }) {
-  const [token,     setToken]     = useState('');
-  const [accountId, setAccountId] = useState('');
-  const [syncTime,  setSyncTime]  = useState('06:00');
-  const [syncDays,  setSyncDays]  = useState('30');
-  const [saving,    setSaving]    = useState(false);
-  const [saved,     setSaved]     = useState(false);
-  const [loading,   setLoading]   = useState(true);
+  const [token,      setToken]      = useState('');
+  const [pageToken,  setPageToken]  = useState('');
+  const [accountId,  setAccountId]  = useState('');
+  const [syncTime,   setSyncTime]   = useState('06:00');
+  const [syncDays,   setSyncDays]   = useState('30');
+  const [saving,     setSaving]     = useState(false);
+  const [saved,      setSaved]      = useState(false);
+  const [loading,    setLoading]    = useState(true);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    fetch('/api/settings?keys=meta_access_token,meta_account_id,meta_sync_time,meta_sync_days')
+    fetch('/api/settings?keys=meta_access_token,meta_page_access_token,meta_account_id,meta_sync_time,meta_sync_days')
       .then(r => r.json())
       .then(d => {
         setToken(d.meta_access_token ?? '');
+        setPageToken(d.meta_page_access_token ?? '');
         setAccountId(d.meta_account_id ?? '');
         setSyncTime(d.meta_sync_time ?? '06:00');
         setSyncDays(d.meta_sync_days ?? '30');
@@ -95,10 +97,11 @@ function SettingsModal({ open, onClose, onSaved }: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([
-        { key: 'meta_access_token', value: token,     is_secret: true, label: 'Meta Access Token' },
-        { key: 'meta_account_id',   value: accountId, label: 'Meta Ad Account ID' },
-        { key: 'meta_sync_time',    value: syncTime,  label: 'Meta Sync Time' },
-        { key: 'meta_sync_days',    value: syncDays,  label: 'Meta Sync Days' },
+        { key: 'meta_access_token',      value: token,      is_secret: true, label: 'Meta Access Token' },
+        { key: 'meta_page_access_token', value: pageToken,  is_secret: true, label: 'Meta Page Access Token' },
+        { key: 'meta_account_id',        value: accountId,  label: 'Meta Ad Account ID' },
+        { key: 'meta_sync_time',         value: syncTime,   label: 'Meta Sync Time' },
+        { key: 'meta_sync_days',         value: syncDays,   label: 'Meta Sync Days' },
       ]),
     });
     setSaving(false);
@@ -133,7 +136,7 @@ function SettingsModal({ open, onClose, onSaved }: {
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-text-muted block mb-1">Access Token</label>
+                <label className="text-xs font-medium text-text-muted block mb-1">Access Token (konto reklamowe)</label>
                 <input
                   type="password"
                   value={token}
@@ -141,6 +144,17 @@ function SettingsModal({ open, onClose, onSaved }: {
                   placeholder="EAAxxxxxxxxxxxxxxx"
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-text-muted block mb-1">Page Access Token (Lead Ads webhook)</label>
+                <input
+                  type="password"
+                  value={pageToken}
+                  onChange={e => setPageToken(e.target.value)}
+                  placeholder="EAAxxxxxxxxxxxxxxx"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-base text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"
+                />
+                <p className="text-[10px] text-text-muted mt-1">System User Token z Business Managera — do odbierania leadów z formularzy</p>
               </div>
               <div>
                 <label className="text-xs font-medium text-text-muted block mb-1">Ad Account ID</label>

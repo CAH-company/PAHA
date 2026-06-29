@@ -103,6 +103,14 @@ export async function POST(req: NextRequest) {
       const leadgenId = change.value?.leadgen_id;
       if (!leadgenId) continue;
 
+      // Deduplicate by external_id — avoid processing the same leadgen_id twice
+      const { data: alreadyExists } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('external_id', leadgenId)
+        .maybeSingle();
+      if (alreadyExists) continue;
+
       try {
         const metaRes = await fetch(
           `https://graph.facebook.com/${META_API_VERSION}/${leadgenId}?fields=field_data,created_time,ad_id,form_id,page_id&access_token=${accessToken}`
@@ -110,7 +118,18 @@ export async function POST(req: NextRequest) {
         const leadData = await metaRes.json();
 
         if (leadData.error) {
-          console.error('[meta-lead] Graph API error:', leadData.error);
+          console.warn('[meta-lead] Graph API error (inserting placeholder):', leadData.error.message);
+
+          // Fallback: insert placeholder so lead isn't silently lost
+          await supabase.from('leads').insert({
+            name:        `Lead Meta #${leadgenId}`,
+            source:      'meta',
+            external_id: leadgenId,
+            notes:       `Form ID: ${change.value?.form_id ?? '?'} | Błąd API: ${leadData.error.message}`,
+            status:      'new',
+            tags:        [],
+            is_archived: false,
+          });
           continue;
         }
 
