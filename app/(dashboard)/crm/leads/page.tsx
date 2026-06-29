@@ -161,6 +161,7 @@ const SOURCE_OPTIONS = [
   { value: 'lemlist', label: 'Lemlist' },
   { value: 'clay', label: 'Clay' },
   { value: 'form', label: 'Formularz' },
+  { value: 'meta', label: 'Meta Ads' },
 ];
 
 export default function LeadsPage() {
@@ -239,7 +240,7 @@ export default function LeadsPage() {
   const activeFilters = [filterStatus, filterContactStatus, filterOwner, filterSource].filter(Boolean).length;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
@@ -301,8 +302,8 @@ export default function LeadsPage() {
       {view === 'kanban' ? (
         <LeadKanban leads={filtered} onLeadClick={setSelectedLead} />
       ) : (
-        <div className="bg-bg-base border border-border rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-bg-base border border-border rounded-xl min-h-[calc(100vh-220px)] flex flex-col">
+          <div className="overflow-x-auto flex-1">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border bg-bg-subtle">
