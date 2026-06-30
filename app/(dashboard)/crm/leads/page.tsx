@@ -176,6 +176,7 @@ export default function LeadsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [panelEditMode, setPanelEditMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -308,7 +309,7 @@ export default function LeadsPage() {
               <thead>
                 <tr className="border-b border-border bg-bg-subtle">
                   {[
-                    { key: 'name',           label: 'Nazwa / Firma' },
+                    { key: 'name',           label: 'Imię i Nazwisko' },
                     { key: 'status',         label: 'Pipeline' },
                     { key: 'contact_status', label: 'Kontakt' },
                     { key: null,             label: 'Opiekun' },
@@ -331,7 +332,7 @@ export default function LeadsPage() {
               <tbody className="divide-y divide-border">
                 {filtered.map((lead) => (
                   <tr key={lead.id} className="hover:bg-bg-subtle transition-colors cursor-pointer"
-                    onClick={() => setSelectedLead(lead)}>
+                    onClick={() => { setSelectedLead(lead); setPanelEditMode(false); }}>
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-text-primary">{lead.name}</p>
                       {lead.company && <p className="text-xs text-text-muted">{lead.company}</p>}
@@ -372,8 +373,8 @@ export default function LeadsPage() {
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
                             <div className="absolute right-0 top-full mt-1 w-48 bg-bg-base border border-border rounded-xl shadow-xl z-20 overflow-hidden">
                               <button className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle flex items-center gap-2"
-                                onClick={() => { setSelectedLead(lead); setOpenMenu(null); }}>
-                                <UserCheck size={13} /> Edytuj / Szczegóły
+                                onClick={() => { setSelectedLead(lead); setPanelEditMode(true); setOpenMenu(null); }}>
+                                <UserCheck size={13} /> Edytuj lead
                               </button>
                               <div className="border-t border-border" />
                               <button className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 flex items-center gap-2"
@@ -409,7 +410,12 @@ export default function LeadsPage() {
         </div>
       )}
 
-      <LeadSidePanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
+      <LeadSidePanel
+        lead={selectedLead}
+        onClose={() => { setSelectedLead(null); setPanelEditMode(false); }}
+        onUpdate={refetch}
+        startInEditMode={panelEditMode}
+      />
       <AddLeadModal open={showAddModal} onClose={() => setShowAddModal(false)}
         ownerOptions={OWNER_OPTIONS} onSuccess={refetch} />
     </div>
