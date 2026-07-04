@@ -118,14 +118,18 @@ export async function POST(req: NextRequest) {
         const leadData = await metaRes.json();
 
         if (leadData.error) {
-          console.warn('[meta-lead] Graph API error (inserting placeholder):', leadData.error.message);
+          const errMsg   = leadData.error.message ?? 'Unknown error';
+          const errCode  = leadData.error.code ?? '?';
+          const errType  = leadData.error.type ?? '';
+          console.warn(`[meta-lead] Graph API error code=${errCode} type=${errType}: ${errMsg}`);
 
-          // Fallback: insert placeholder so lead isn't silently lost
+          // Fallback: insert placeholder so lead isn't silently lost.
+          // Error details in notes — use "Pobierz dane z Meta" button in CRM after fixing the token.
           await supabase.from('leads').insert({
             name:        `Lead Meta #${leadgenId}`,
             source:      'meta',
             external_id: leadgenId,
-            notes:       `Form ID: ${change.value?.form_id ?? '?'} | Błąd API: ${leadData.error.message}`,
+            notes:       `[Błąd pobierania danych z Meta]\nKod: ${errCode} | Typ: ${errType}\nTreść: ${errMsg}\n\nForm ID: ${change.value?.form_id ?? '?'}\nSprawdź token w Ustawieniach → Integracje i kliknij "Pobierz dane z Meta" przy tym leadzie.`,
             status:      'new',
             tags:        [],
             is_archived: false,

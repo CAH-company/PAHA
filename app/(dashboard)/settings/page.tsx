@@ -304,6 +304,8 @@ function IntegrationsSection() {
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [metaTest, setMetaTest] = useState<{ ok: boolean; text: string } | null>(null);
+  const [metaTesting, setMetaTesting] = useState(false);
 
   function set(key: string, value: string) { setData(d => ({ ...d, [key]: value })); }
 
@@ -315,6 +317,33 @@ function IntegrationsSection() {
     setSaving(null);
     if (ok) { setSaved(id); setTimeout(() => setSaved(null), 2500); }
     else setErrors(e => ({ ...e, [id]: 'Błąd zapisu' }));
+  }
+
+  async function testMetaToken() {
+    setMetaTesting(true);
+    setMetaTest(null);
+    try {
+      const res = await fetch('/api/meta-leads/retry');
+      const d = await res.json();
+      if (d.ok) {
+        const expiry = d.expires_at === 'never (non-expiring token)'
+          ? 'token bezterminowy'
+          : `wygasa ${new Date(d.expires_at).toLocaleDateString('pl-PL')}`;
+        const leadsOk = d.has_leads_retrieval;
+        setMetaTest({
+          ok: leadsOk,
+          text: leadsOk
+            ? `Token OK · uprawnienie leads_retrieval ✓ · ${expiry}`
+            : `Token aktywny ale BRAK leads_retrieval · ${expiry} — wygeneruj nowy token z tym uprawnieniem`,
+        });
+      } else {
+        setMetaTest({ ok: false, text: d.error ?? 'Nieznany błąd' });
+      }
+    } catch {
+      setMetaTest({ ok: false, text: 'Błąd sieci' });
+    } finally {
+      setMetaTesting(false);
+    }
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://twoja-domena.vercel.app';
@@ -422,7 +451,7 @@ function IntegrationsSection() {
           value={data.meta_page_access_token ?? ''}
           onChange={v => set('meta_page_access_token', v)}
         />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" size="sm"
             disabled={saving === 'meta_verify_token'}
             onClick={() => saveKey([
@@ -432,9 +461,17 @@ function IntegrationsSection() {
             ])}>
             {saving === 'meta_verify_token' ? <Loader2 size={12} className="animate-spin" /> : 'Zapisz'}
           </Button>
+          <Button variant="outline" size="sm" disabled={metaTesting} onClick={testMetaToken}>
+            {metaTesting ? <><Loader2 size={12} className="animate-spin" /> Testowanie…</> : 'Testuj token'}
+          </Button>
           {saved === 'meta_verify_token' && <span className="flex items-center gap-1 text-xs text-emerald-600"><Check size={12} /> Zapisano</span>}
           {errors.meta_verify_token && <span className="text-xs text-red-500">{errors.meta_verify_token}</span>}
         </div>
+        {metaTest && (
+          <p className={`text-xs mt-1 ${metaTest.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+            {metaTest.text}
+          </p>
+        )}
       </div>
     </>
   );

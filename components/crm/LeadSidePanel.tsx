@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Mail, Phone, MapPin, Phone as PhoneIcon, ArrowRight, Archive, Pencil, Save } from 'lucide-react';
+import { X, Mail, Phone, MapPin, Phone as PhoneIcon, ArrowRight, Archive, Pencil, Save, RefreshCw } from 'lucide-react';
 import type { Lead, LeadStatus, ContactStatus } from '@/types';
 import { cn, formatDate, formatCurrency, SOURCE_LABELS } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
@@ -64,7 +64,35 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [note, setNote] = useState('');
+  const [retrying, setRetrying] = useState(false);
+  const [retryMsg, setRetryMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const { employees } = useEmployees();
+
+  const isFailedMetaLead = lead?.source === 'meta' && lead?.external_id && !lead?.email && !lead?.phone;
+
+  const handleMetaRetry = async () => {
+    if (!lead) return;
+    setRetrying(true);
+    setRetryMsg(null);
+    try {
+      const res = await fetch('/api/meta-leads/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRetryMsg({ ok: false, text: data.error ?? 'Błąd połączenia z Meta' });
+      } else {
+        setRetryMsg({ ok: true, text: `Pobrano dane: ${data.name}${data.email ? ` · ${data.email}` : ''}` });
+        onUpdate?.();
+      }
+    } catch {
+      setRetryMsg({ ok: false, text: 'Błąd sieci' });
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (!lead) return;
@@ -204,6 +232,31 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'Info' && !isEditing && (
             <div className="space-y-4">
+
+              {/* Meta lead fetch failed — show retry banner */}
+              {isFailedMetaLead && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+                  <p className="text-xs text-amber-800 font-medium">
+                    Nie udało się pobrać danych z Meta. Sprawdź token w Ustawieniach i spróbuj ponownie.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleMetaRetry}
+                      disabled={retrying}
+                      className="flex items-center gap-1.5 text-xs font-medium text-amber-900 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 px-2.5 py-1 rounded-md transition-colors"
+                    >
+                      <RefreshCw size={11} className={retrying ? 'animate-spin' : ''} />
+                      {retrying ? 'Pobieranie…' : 'Pobierz dane z Meta'}
+                    </button>
+                  </div>
+                  {retryMsg && (
+                    <p className={cn('text-xs', retryMsg.ok ? 'text-emerald-700' : 'text-red-600')}>
+                      {retryMsg.text}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2.5">
                 {lead.email && (
                   <div className="flex items-center gap-2.5 text-sm">
