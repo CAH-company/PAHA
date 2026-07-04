@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
       try {
         const metaRes = await fetch(
-          `https://graph.facebook.com/${META_API_VERSION}/${leadgenId}?fields=field_data,created_time,ad_id,form_id,page_id&access_token=${accessToken}`
+          `https://graph.facebook.com/${META_API_VERSION}/${leadgenId}?fields=field_data,created_time,ad_id,form_id&access_token=${accessToken}`
         );
         const leadData = await metaRes.json();
 
