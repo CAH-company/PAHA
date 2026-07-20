@@ -7,7 +7,7 @@ import {
   ArrowLeft, Mail, Phone, MapPin, Building2, Hash,
   FileText, Calendar, ExternalLink, FolderOpen,
   CheckCircle2, Loader2, AlertCircle, X, Copy,
-  Check, Send, Tag, Clock, Pencil,
+  Check, Send, Tag, Clock, Pencil, Trash2,
 } from 'lucide-react';
 import { useClient } from '@/hooks/useClient';
 import { useEmployees } from '@/hooks/useEmployees';
@@ -430,8 +430,20 @@ export default function ClientDetailPage() {
   const { client, loading, notFound, refetch } = useClient(id);
   const { employees } = useEmployees();
   const [showEdit, setShowEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const ownerOptions = employees.map(e => ({ value: e.id, label: e.name }));
+
+  const handleDelete = async () => {
+    if (!client) return;
+    if (!confirm(`Na pewno usunąć klienta "${client.name}"? Tej operacji nie można cofnąć.`)) return;
+    setDeleting(true);
+    const supabase = createSupabaseClient();
+    const { error } = await supabase.from('clients').delete().eq('id', client.id);
+    setDeleting(false);
+    if (error) { alert(error.message); return; }
+    router.push('/crm/clients');
+  };
 
   if (loading) {
     return (
@@ -476,9 +488,14 @@ export default function ClientDetailPage() {
               </div>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
-            <Pencil size={13} /> Edytuj
-          </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setShowEdit(true)}>
+              <Pencil size={13} /> Edytuj
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
+              <Trash2 size={13} /> {deleting ? 'Usuwam…' : 'Usuń'}
+            </Button>
+          </div>
         </div>
       </div>
 

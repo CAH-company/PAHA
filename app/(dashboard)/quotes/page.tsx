@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Plus, Search, MoreHorizontal, Eye, Copy, Trash2,
   X, FileText, Package, Clock, CheckCircle2,
@@ -54,6 +54,11 @@ function formatMoney(amount: number, currency: string = 'PLN'): string {
   const sym: Record<string, string> = { PLN: 'zł', EUR: '€', USD: '$' };
   const formatted = new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
   return currency === 'PLN' ? `${formatted} ${sym[currency]}` : `${sym[currency] ?? currency} ${formatted}`;
+}
+
+function parsePriceText(text: string): number {
+  const parsed = parseFloat(text.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function today(): string {
@@ -238,8 +243,25 @@ function LineItemRow({ item, onChange, onRemove }: LineItemRowProps) {
   // Cena brutto za jednostkę — wyliczana z netto, ale też edytowalna wprost
   // (wpisanie brutto przelicza netto, żeby nie trzeba było liczyć na kalkulatorze).
   const unitPriceGross = item.unit_price_net * (1 + item.vat_rate / 100);
-  const updateGross = (grossValue: number) => {
-    const net = grossValue / (1 + item.vat_rate / 100);
+
+  // Pola netto/brutto trzymają własny tekst, żeby wpisywanie kropki/przecinka
+  // dziesiętnego nie było "zjadane" przez przeliczenie i re-render przy każdym znaku.
+  const netEditing = useRef(false);
+  const grossEditing = useRef(false);
+  const [netText, setNetText] = useState(() => String(item.unit_price_net));
+  const [grossText, setGrossText] = useState(() => String(Math.round(unitPriceGross * 100) / 100));
+
+  useEffect(() => {
+    if (!netEditing.current) setNetText(String(item.unit_price_net));
+  }, [item.unit_price_net]);
+
+  useEffect(() => {
+    if (!grossEditing.current) setGrossText(String(Math.round(unitPriceGross * 100) / 100));
+  }, [unitPriceGross]);
+
+  const commitNet = (text: string) => update({ unit_price_net: parsePriceText(text) });
+  const commitGross = (text: string) => {
+    const net = parsePriceText(text) / (1 + item.vat_rate / 100);
     update({ unit_price_net: Math.round(net * 100) / 100 });
   };
 
@@ -277,9 +299,11 @@ function LineItemRow({ item, onChange, onRemove }: LineItemRowProps) {
       </select>
 
       <input
-        type="number" min="0" step="0.01"
-        value={item.unit_price_net}
-        onChange={e => update({ unit_price_net: parseFloat(e.target.value) || 0 })}
+        type="text" inputMode="decimal"
+        value={netText}
+        onFocus={() => { netEditing.current = true; }}
+        onBlur={() => { netEditing.current = false; setNetText(String(item.unit_price_net)); }}
+        onChange={e => { setNetText(e.target.value); commitNet(e.target.value); }}
         title="Cena netto"
         className="border border-border rounded-md px-2.5 py-1.5 text-sm bg-bg-base text-text-primary text-right focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
       />
@@ -293,9 +317,11 @@ function LineItemRow({ item, onChange, onRemove }: LineItemRowProps) {
       </select>
 
       <input
-        type="number" min="0" step="0.01"
-        value={Math.round(unitPriceGross * 100) / 100}
-        onChange={e => updateGross(parseFloat(e.target.value) || 0)}
+        type="text" inputMode="decimal"
+        value={grossText}
+        onFocus={() => { grossEditing.current = true; }}
+        onBlur={() => { grossEditing.current = false; setGrossText(String(Math.round(unitPriceGross * 100) / 100)); }}
+        onChange={e => { setGrossText(e.target.value); commitGross(e.target.value); }}
         title="Cena brutto"
         className="border border-border rounded-md px-2.5 py-1.5 text-sm bg-bg-base text-text-primary text-right focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
       />
@@ -347,7 +373,7 @@ function QuoteBuilder({ open, onClose, onSave, initial, existingQuotes }: QuoteB
 
   const addFromCatalog = (svc: Service) => {
     setItems(prev => [...prev, calcLineItem({
-      id: generateId(), name: svc.name, description: '',
+      id: generateId(), name: svc.name, description: svc.description ?? '',
       quantity: 1, unit: svc.unit,
       unit_price_net: svc.unit_price_net, vat_rate: svc.vat_rate,
     })]);
@@ -681,6 +707,30 @@ function ServicesCatalog() {
     name: '', unit: 'projekt', unit_price_net: 0, vat_rate: 23, description: '',
   });
 
+  // Netto/brutto — tekst lokalny, żeby wpisywanie kropki/przecinka dziesiętnego
+  // nie było zjadane przez przeliczenie i re-render przy każdym znaku.
+  const netEditing = useRef(false);
+  const grossEditing = useRef(false);
+  const formNet = form.unit_price_net ?? 0;
+  const formVat = form.vat_rate ?? 23;
+  const formGross = formNet * (1 + formVat / 100);
+  const [netText, setNetText] = useState(() => String(formNet));
+  const [grossText, setGrossText] = useState(() => String(Math.round(formGross * 100) / 100));
+
+  useEffect(() => {
+    if (!netEditing.current) setNetText(String(formNet));
+  }, [formNet]);
+
+  useEffect(() => {
+    if (!grossEditing.current) setGrossText(String(Math.round(formGross * 100) / 100));
+  }, [formGross]);
+
+  const commitNet = (text: string) => setForm(f => ({ ...f, unit_price_net: parsePriceText(text) }));
+  const commitGross = (text: string) => {
+    const net = parsePriceText(text) / (1 + formVat / 100);
+    setForm(f => ({ ...f, unit_price_net: Math.round(net * 100) / 100 }));
+  };
+
   function openAdd() {
     setForm({ name: '', unit: 'projekt', unit_price_net: 0, vat_rate: 23, description: '' });
     setAdding(true);
@@ -784,20 +834,19 @@ function ServicesCatalog() {
           <div className="grid grid-cols-2 gap-3">
             <Input
               label="Cena netto (PLN)"
-              type="number"
-              value={form.unit_price_net ?? ''}
-              onChange={e => setForm(f => ({ ...f, unit_price_net: parseFloat(e.target.value) || 0 }))}
+              type="text" inputMode="decimal"
+              value={netText}
+              onFocus={() => { netEditing.current = true; }}
+              onBlur={() => { netEditing.current = false; setNetText(String(formNet)); }}
+              onChange={e => { setNetText(e.target.value); commitNet(e.target.value); }}
             />
             <Input
               label="Cena brutto (PLN)"
-              type="number"
-              value={form.unit_price_net != null && form.vat_rate != null
-                ? Math.round(form.unit_price_net * (1 + form.vat_rate / 100) * 100) / 100
-                : ''}
-              onChange={e => {
-                const gross = parseFloat(e.target.value) || 0;
-                setForm(f => ({ ...f, unit_price_net: Math.round((gross / (1 + (f.vat_rate ?? 23) / 100)) * 100) / 100 }));
-              }}
+              type="text" inputMode="decimal"
+              value={grossText}
+              onFocus={() => { grossEditing.current = true; }}
+              onBlur={() => { grossEditing.current = false; setGrossText(String(Math.round(formGross * 100) / 100)); }}
+              onChange={e => { setGrossText(e.target.value); commitGross(e.target.value); }}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

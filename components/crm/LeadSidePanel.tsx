@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Mail, Phone, MapPin, Phone as PhoneIcon, ArrowRight, Archive, Pencil, Save, RefreshCw } from 'lucide-react';
 import type { Lead, LeadStatus, ContactStatus } from '@/types';
-import { cn, formatDate, formatCurrency, SOURCE_LABELS } from '@/lib/utils';
+import { cn, formatDate, formatCurrency, SOURCE_LABELS, LEAD_STATUS_LABELS, LEAD_STATUS_COLORS } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -320,6 +320,12 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
               <div className="h-px bg-border" />
 
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1">Status pipeline</p>
+                  <span className="text-xs font-medium" style={{ color: LEAD_STATUS_COLORS[lead.status] }}>
+                    {LEAD_STATUS_LABELS[lead.status] ?? lead.status}
+                  </span>
+                </div>
                 <div>
                   <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1">Opiekun</p>
                   {lead.owner ? (

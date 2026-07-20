@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Archive, RotateCcw, Search } from 'lucide-react';
+import { Archive, RotateCcw, Search, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn, formatDate, LEAD_STATUS_LABELS, SOURCE_LABELS } from '@/lib/utils';
 import { LeadStatusBadge } from '@/components/crm/LeadStatusBadge';
@@ -14,6 +14,7 @@ export default function ArchivePage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const loadLeads = useCallback(async () => {
@@ -55,6 +56,26 @@ export default function ArchivePage() {
     await supabase.from('clients').update({ is_archived: false }).eq('id', id);
     await loadClients();
     setRestoring(null);
+  };
+
+  const deleteLead = async (id: string, name: string) => {
+    if (!confirm(`Na pewno trwale usunąć leada "${name}"? Tej operacji nie można cofnąć.`)) return;
+    setDeleting(id);
+    const supabase = createClient();
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    setDeleting(null);
+    if (error) { alert(error.message); return; }
+    await loadLeads();
+  };
+
+  const deleteClient = async (id: string, name: string) => {
+    if (!confirm(`Na pewno trwale usunąć klienta "${name}"? Tej operacji nie można cofnąć.`)) return;
+    setDeleting(id);
+    const supabase = createClient();
+    const { error } = await supabase.from('clients').delete().eq('id', id);
+    setDeleting(null);
+    if (error) { alert(error.message); return; }
+    await loadClients();
   };
 
   const filteredLeads = leads.filter(l => {
@@ -147,15 +168,26 @@ export default function ArchivePage() {
                         <span className="text-xs text-text-muted">{formatDate(lead.created_at)}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => restoreLead(lead.id)}
-                          disabled={restoring === lead.id}
-                        >
-                          <RotateCcw size={12} />
-                          {restoring === lead.id ? '…' : 'Przywróć'}
-                        </Button>
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => restoreLead(lead.id)}
+                            disabled={restoring === lead.id || deleting === lead.id}
+                          >
+                            <RotateCcw size={12} />
+                            {restoring === lead.id ? '…' : 'Przywróć'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteLead(lead.id, lead.name)}
+                            disabled={deleting === lead.id || restoring === lead.id}
+                          >
+                            <Trash2 size={12} />
+                            {deleting === lead.id ? '…' : 'Usuń'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -203,15 +235,26 @@ export default function ArchivePage() {
                         <span className="text-xs text-text-muted">{formatDate(client.created_at)}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => restoreClient(client.id)}
-                          disabled={restoring === client.id}
-                        >
-                          <RotateCcw size={12} />
-                          {restoring === client.id ? '…' : 'Przywróć'}
-                        </Button>
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => restoreClient(client.id)}
+                            disabled={restoring === client.id || deleting === client.id}
+                          >
+                            <RotateCcw size={12} />
+                            {restoring === client.id ? '…' : 'Przywróć'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteClient(client.id, client.name)}
+                            disabled={deleting === client.id || restoring === client.id}
+                          >
+                            <Trash2 size={12} />
+                            {deleting === client.id ? '…' : 'Usuń'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
