@@ -21,7 +21,7 @@ export interface Employee {
   updated_at: string;
 }
 
-export type LeadStatus = 'new' | 'contacted' | 'offer_sent' | 'negotiation' | 'won' | 'lost';
+export type LeadStatus = 'new' | 'contacted' | 'offer_sent' | 'negotiation' | 'won' | 'lost' | 'wrong_form' | 'mistake';
 export type LeadSource = 'manual' | 'csv' | 'lemlist' | 'clay' | 'form' | 'meta';
 export type ContactStatus = 'not_contacted' | 'in_sequence' | 'replied' | 'bounced' | 'unsubscribed' | 'meeting_booked';
 
@@ -29,6 +29,7 @@ export interface Lead {
   id: string;
   name: string;
   company?: string;
+  company_size?: string;
   email?: string;
   phone?: string;
   address?: string;

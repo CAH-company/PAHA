@@ -43,6 +43,8 @@ export const LEAD_STATUS_LABELS: Record<string, string> = {
   negotiation: 'Negocjacje',
   won: 'Wygrany',
   lost: 'Przegrany',
+  wrong_form: 'Źle wypełniony formularz',
+  mistake: 'Pomyłka',
 };
 
 export const LEAD_STATUS_COLORS: Record<string, string> = {
@@ -52,6 +54,8 @@ export const LEAD_STATUS_COLORS: Record<string, string> = {
   negotiation: '#f97316',
   won: '#10b981',
   lost: '#ef4444',
+  wrong_form: '#a8a29e',
+  mistake: '#64748b',
 };
 
 export const PRIORITY_LABELS: Record<string, string> = {

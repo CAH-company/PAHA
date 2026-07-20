@@ -42,7 +42,7 @@ function ContactBadge({ status }: { status: ContactStatus }) {
 
 // ─── ADD LEAD MODAL ───────────────────────────────────────────────────────────
 const EMPTY_LEAD = {
-  name: '', company: '', email: '', phone: '', address: '',
+  name: '', company: '', company_size: '', email: '', phone: '', address: '',
   source: 'manual' as const, status: 'new' as LeadStatus,
   contact_status: 'not_contacted' as ContactStatus,
   owner_id: '', notes: '',
@@ -66,6 +66,7 @@ function AddLeadModal({ open, onClose, ownerOptions, onSuccess }: {
     const { error: err } = await supabase.from('leads').insert({
       name: form.name.trim(),
       company: form.company.trim() || null,
+      company_size: form.company_size.trim() || null,
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
       address: form.address.trim() || null,
@@ -96,7 +97,10 @@ function AddLeadModal({ open, onClose, ownerOptions, onSuccess }: {
           <Input label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="jan@firma.pl" />
           <Input label="Telefon" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+48 500 000 000" />
         </div>
-        <Input label="Adres" value={form.address} onChange={e => set('address', e.target.value)} placeholder="ul. Przykładowa 1, Warszawa" />
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Adres" value={form.address} onChange={e => set('address', e.target.value)} placeholder="ul. Przykładowa 1, Warszawa" />
+          <Input label="Wielkość firmy" value={form.company_size} onChange={e => set('company_size', e.target.value)} placeholder="np. 11-50 pracowników" />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Select label="Źródło" value={form.source} onChange={e => set('source', e.target.value)}
             options={[
@@ -108,6 +112,7 @@ function AddLeadModal({ open, onClose, ownerOptions, onSuccess }: {
               { value: 'new', label: 'Nowy' }, { value: 'contacted', label: 'Kontakt' },
               { value: 'offer_sent', label: 'Oferta wysłana' }, { value: 'negotiation', label: 'Negocjacje' },
               { value: 'won', label: 'Wygrany' }, { value: 'lost', label: 'Przegrany' },
+              { value: 'wrong_form', label: 'Źle wypełniony formularz' }, { value: 'mistake', label: 'Pomyłka' },
             ]} />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -147,6 +152,8 @@ const STATUS_OPTIONS = [
   { value: 'negotiation', label: 'Negocjacje' },
   { value: 'won', label: 'Wygrany' },
   { value: 'lost', label: 'Przegrany' },
+  { value: 'wrong_form', label: 'Źle wypełniony formularz' },
+  { value: 'mistake', label: 'Pomyłka' },
 ];
 
 const CONTACT_STATUS_OPTIONS = [
@@ -301,7 +308,7 @@ export default function LeadsPage() {
 
       {/* Content */}
       {view === 'kanban' ? (
-        <LeadKanban leads={filtered} onLeadClick={setSelectedLead} />
+        <LeadKanban leads={filtered} onLeadClick={setSelectedLead} onStatusChange={refetch} />
       ) : (
         <div className="bg-bg-base border border-border rounded-xl min-h-[calc(100vh-220px)] flex flex-col">
           <div className="overflow-x-auto flex-1">

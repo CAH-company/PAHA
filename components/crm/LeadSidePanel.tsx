@@ -29,6 +29,8 @@ const STATUS_OPTIONS = [
   { value: 'negotiation',  label: 'Negocjacje' },
   { value: 'won',          label: 'Wygrany' },
   { value: 'lost',         label: 'Przegrany' },
+  { value: 'wrong_form',   label: 'Źle wypełniony formularz' },
+  { value: 'mistake',      label: 'Pomyłka' },
 ];
 
 const CONTACT_STATUS_OPTIONS = Object.entries(CONTACT_STATUS_CONFIG).map(([v, c]) => ({ value: v, label: c.label }));
@@ -43,6 +45,7 @@ interface LeadSidePanelProps {
 type EditForm = {
   name: string;
   company: string;
+  company_size: string;
   email: string;
   phone: string;
   address: string;
@@ -53,7 +56,7 @@ type EditForm = {
   notes: string;
 };
 
-const TABS = ['Info', 'Historia', 'Notatki', 'Przypomnienia'] as const;
+const TABS = ['Info', 'Przypomnienia'] as const;
 type Tab = typeof TABS[number];
 
 
@@ -63,9 +66,10 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
   const [form, setForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [note, setNote] = useState('');
   const [retrying, setRetrying] = useState(false);
   const [retryMsg, setRetryMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState('');
   const { employees } = useEmployees();
 
   const isFailedMetaLead = lead?.source === 'meta' && lead?.external_id && !lead?.email && !lead?.phone;
@@ -97,11 +101,13 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
   useEffect(() => {
     if (!lead) return;
     setSaveError('');
+    setConvertError('');
     setActiveTab('Info');
     if (startInEditMode) {
       setForm({
         name:            lead.name,
         company:         lead.company ?? '',
+        company_size:    lead.company_size ?? '',
         email:           lead.email ?? '',
         phone:           lead.phone ?? '',
         address:         lead.address ?? '',
@@ -129,6 +135,7 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
     setForm({
       name:            lead.name,
       company:         lead.company ?? '',
+      company_size:    lead.company_size ?? '',
       email:           lead.email ?? '',
       phone:           lead.phone ?? '',
       address:         lead.address ?? '',
@@ -159,6 +166,7 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
     const { error } = await supabase.from('leads').update({
       name:            form.name.trim(),
       company:         form.company.trim() || null,
+      company_size:    form.company_size.trim() || null,
       email:           form.email.trim() || null,
       phone:           form.phone.trim() || null,
       address:         form.address.trim() || null,
@@ -173,6 +181,34 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
     setIsEditing(false);
     setForm(null);
     onUpdate?.();
+  };
+
+  const handleConvertToClient = async () => {
+    setConverting(true);
+    setConvertError('');
+    const supabase = createClient();
+    const { error: insertError } = await supabase.from('clients').insert({
+      lead_id:  lead.id,
+      name:     lead.name,
+      company:  lead.company ?? null,
+      email:    lead.email ?? null,
+      phone:    lead.phone ?? null,
+      address:  lead.address ?? null,
+      owner_id: lead.owner_id ?? null,
+      notes:    lead.notes ?? null,
+      currency: lead.currency,
+      status:   'active',
+    });
+    if (insertError) { setConverting(false); setConvertError(insertError.message); return; }
+
+    const { error: updateError } = await supabase.from('leads')
+      .update({ status: 'won', is_archived: true })
+      .eq('id', lead.id);
+    setConverting(false);
+    if (updateError) { setConvertError(updateError.message); return; }
+
+    onUpdate?.();
+    onClose();
   };
 
   return (
@@ -313,6 +349,10 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
                     {CONTACT_STATUS_CONFIG[lead.contact_status]?.label ?? '—'}
                   </span>
                 </div>
+                <div>
+                  <p className="text-[10px] text-text-muted uppercase tracking-wider font-semibold mb-1">Wielkość firmy</p>
+                  <span className="text-xs text-text-secondary">{lead.company_size || '—'}</span>
+                </div>
               </div>
 
               {lead.tags.length > 0 && (
@@ -343,7 +383,10 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
                 <Input label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="jan@firma.pl" />
                 <Input label="Telefon" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+48 500 000 000" />
               </div>
-              <Input label="Adres" value={form.address} onChange={e => set('address', e.target.value)} placeholder="ul. Przykładowa 1, Warszawa" />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Adres" value={form.address} onChange={e => set('address', e.target.value)} placeholder="ul. Przykładowa 1, Warszawa" />
+                <Input label="Wielkość firmy" value={form.company_size} onChange={e => set('company_size', e.target.value)} placeholder="np. 11-50 pracowników" />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Select label="Status pipeline" value={form.status} onChange={e => set('status', e.target.value as LeadStatus)} options={STATUS_OPTIONS} />
                 <Select label="Status kontaktu" value={form.contact_status} onChange={e => set('contact_status', e.target.value as ContactStatus)} options={CONTACT_STATUS_OPTIONS} />
@@ -375,38 +418,6 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
             </div>
           )}
 
-          {activeTab === 'Historia' && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-10 h-10 rounded-xl bg-bg-muted flex items-center justify-center mb-3">
-                <span className="text-lg">📋</span>
-              </div>
-              <p className="text-sm font-medium text-text-primary">Brak historii aktywności</p>
-              <p className="text-xs text-text-muted mt-1">Aktywności dla tego leadu będą tu zapisywane</p>
-            </div>
-          )}
-
-          {activeTab === 'Notatki' && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <textarea
-                  value={note}
-                  onChange={e => setNote(e.target.value)}
-                  placeholder="Dodaj notatkę..."
-                  rows={4}
-                  className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-bg-base text-text-primary placeholder:text-text-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/30"
-                />
-                <Button variant="primary" size="sm" disabled={!note.trim()}>
-                  Dodaj notatkę
-                </Button>
-              </div>
-              {!note && (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <p className="text-xs text-text-muted">Brak notatek dla tego leadu</p>
-                </div>
-              )}
-            </div>
-          )}
-
           {activeTab === 'Przypomnienia' && (
             <div className="space-y-4">
               <div className="p-3 bg-accent-subtle rounded-lg border border-accent/20">
@@ -427,14 +438,15 @@ export function LeadSidePanel({ lead, onClose, onUpdate, startInEditMode }: Lead
 
         {/* Footer */}
         <div className="flex-shrink-0 border-t border-border px-5 py-3 bg-bg-subtle">
+          {convertError && <p className="text-xs text-red-500 mb-2">{convertError}</p>}
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="flex-1">
               <PhoneIcon size={13} />
               Zarejestruj kontakt
             </Button>
-            <Button variant="primary" size="sm" className="flex-1">
+            <Button variant="primary" size="sm" className="flex-1" onClick={handleConvertToClient} disabled={converting}>
               <ArrowRight size={13} />
-              Konwertuj na klienta
+              {converting ? 'Konwertuję…' : 'Konwertuj na klienta'}
             </Button>
             <Button variant="ghost" size="icon">
               <Archive size={14} />

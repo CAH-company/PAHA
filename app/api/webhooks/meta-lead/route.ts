@@ -157,11 +157,28 @@ export async function POST(req: NextRequest) {
           (firstName || lastName ? `${firstName} ${lastName}`.trim() : null) ??
           email?.split('@')[0] ?? 'Lead z Meta';
 
+        // Wielkość firmy — pytanie niestandardowe, klucz zależy od tego, jak nazwano
+        // je w Meta Ads Managerze. Sprawdzamy typowe warianty, a jeśli żaden nie pasuje,
+        // bierzemy pierwsze pole, które nie zostało już zużyte przez znane klucze —
+        // formularz ma dokładnie jedno dodatkowe pytanie, więc to bezpieczny fallback.
+        const KNOWN_KEYS = new Set([
+          'email', 'phone_number', 'phone', 'company_name', 'company',
+          'first_name', 'last_name', 'full_name', 'name', 'message', 'comment',
+        ]);
+        let companySize =
+          fields['company_size'] ?? fields['wielkosc_firmy'] ?? fields['firm_size'] ??
+          fields['business_size'] ?? fields['employees'] ?? fields['ile_pracownikow'] ?? null;
+        if (!companySize) {
+          const leftoverKey = Object.keys(fields).find(k => !KNOWN_KEYS.has(k) && fields[k]);
+          if (leftoverKey) companySize = fields[leftoverKey];
+        }
+
         await supabase.from('leads').insert({
           name:     fullName,
           email,
           phone:    fields['phone_number'] ?? fields['phone'] ?? null,
           company:  fields['company_name'] ?? fields['company'] ?? null,
+          company_size: companySize,
           notes:    fields['message'] ?? fields['comment'] ?? null,
           source:   'meta',
           external_id: leadgenId,

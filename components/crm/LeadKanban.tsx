@@ -4,15 +4,17 @@ import { useState } from 'react';
 import type { Lead, LeadStatus } from '@/types';
 import { LEAD_STATUS_LABELS, LEAD_STATUS_COLORS, formatCurrency, formatTimeAgo } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
+import { createClient } from '@/lib/supabase/client';
 
-const KANBAN_COLS: LeadStatus[] = ['new', 'contacted', 'offer_sent', 'negotiation', 'won', 'lost'];
+const KANBAN_COLS: LeadStatus[] = ['new', 'contacted', 'offer_sent', 'negotiation', 'won', 'lost', 'wrong_form', 'mistake'];
 
 interface LeadKanbanProps {
   leads: Lead[];
   onLeadClick: (lead: Lead) => void;
+  onStatusChange?: () => void;
 }
 
-export function LeadKanban({ leads, onLeadClick }: LeadKanbanProps) {
+export function LeadKanban({ leads, onLeadClick, onStatusChange }: LeadKanbanProps) {
   const [dragOver, setDragOver] = useState<LeadStatus | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
 
@@ -23,11 +25,17 @@ export function LeadKanban({ leads, onLeadClick }: LeadKanbanProps) {
     e.dataTransfer.setData('leadId', leadId);
   };
 
-  const handleDrop = (e: React.DragEvent, status: LeadStatus) => {
+  const handleDrop = async (e: React.DragEvent, status: LeadStatus) => {
     e.preventDefault();
+    const leadId = e.dataTransfer.getData('leadId');
     setDragOver(null);
     setDragging(null);
-    // In real app: update lead status via API
+    if (!leadId) return;
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || lead.status === status) return;
+    const supabase = createClient();
+    await supabase.from('leads').update({ status }).eq('id', leadId);
+    onStatusChange?.();
   };
 
   return (

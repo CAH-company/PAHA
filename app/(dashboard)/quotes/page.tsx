@@ -42,21 +42,6 @@ const UNIT_OPTIONS = [
   { value: 'dzień',   label: 'dzień' },
 ];
 
-const SERVICES_CATALOG = [
-  { name: 'Automatyzacja procesów',     price: 4500, unit: 'projekt', vat: 23 },
-  { name: 'Integracja systemów',        price: 3200, unit: 'projekt', vat: 23 },
-  { name: 'Konsultacje',                price: 350,  unit: 'godz',    vat: 23 },
-  { name: 'Wdrożenie',                  price: 6000, unit: 'projekt', vat: 23 },
-  { name: 'Wsparcie techniczne',        price: 2800, unit: 'mies',    vat: 23 },
-  { name: 'Analiza procesów',           price: 1800, unit: 'projekt', vat: 23 },
-  { name: 'Tworzenie stron WWW',        price: 5500, unit: 'projekt', vat: 23 },
-  { name: 'Marketing automation',       price: 2200, unit: 'mies',    vat: 23 },
-  { name: 'Szkolenie zespołu',          price: 450,  unit: 'godz',    vat: 23 },
-  { name: 'Audyt systemów IT',          price: 2500, unit: 'projekt', vat: 23 },
-  { name: 'Opieka SEO',                 price: 1500, unit: 'mies',    vat: 23 },
-  { name: 'Zarządzanie kampaniami Ads', price: 1200, unit: 'mies',    vat: 23 },
-];
-
 const CURRENCY_OPTIONS = [
   { value: 'PLN', label: 'PLN' },
   { value: 'EUR', label: 'EUR' },
@@ -250,9 +235,17 @@ function LineItemRow({ item, onChange, onRemove }: LineItemRowProps) {
     onChange({ ...merged, amount_net, vat_amount, amount_gross: amount_net + vat_amount });
   };
 
+  // Cena brutto za jednostkę — wyliczana z netto, ale też edytowalna wprost
+  // (wpisanie brutto przelicza netto, żeby nie trzeba było liczyć na kalkulatorze).
+  const unitPriceGross = item.unit_price_net * (1 + item.vat_rate / 100);
+  const updateGross = (grossValue: number) => {
+    const net = grossValue / (1 + item.vat_rate / 100);
+    update({ unit_price_net: Math.round(net * 100) / 100 });
+  };
+
   return (
     <div className="grid gap-1.5 py-2.5 border-b border-border last:border-0"
-      style={{ gridTemplateColumns: '1fr 70px 90px 80px 70px 90px 24px' }}>
+      style={{ gridTemplateColumns: '1fr 55px 78px 68px 56px 68px 78px 22px' }}>
       <div className="flex flex-col gap-1 min-w-0">
         <input
           value={item.name}
@@ -287,6 +280,7 @@ function LineItemRow({ item, onChange, onRemove }: LineItemRowProps) {
         type="number" min="0" step="0.01"
         value={item.unit_price_net}
         onChange={e => update({ unit_price_net: parseFloat(e.target.value) || 0 })}
+        title="Cena netto"
         className="border border-border rounded-md px-2.5 py-1.5 text-sm bg-bg-base text-text-primary text-right focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
       />
 
@@ -298,8 +292,16 @@ function LineItemRow({ item, onChange, onRemove }: LineItemRowProps) {
         {VAT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
 
+      <input
+        type="number" min="0" step="0.01"
+        value={Math.round(unitPriceGross * 100) / 100}
+        onChange={e => updateGross(parseFloat(e.target.value) || 0)}
+        title="Cena brutto"
+        className="border border-border rounded-md px-2.5 py-1.5 text-sm bg-bg-base text-text-primary text-right focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
+      />
+
       <div className="flex items-center justify-end">
-        <span className="text-sm font-medium text-text-primary text-right">
+        <span className="text-sm font-medium text-text-primary text-right" title="Wartość pozycji brutto">
           {new Intl.NumberFormat('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(item.amount_gross)}
         </span>
       </div>
@@ -339,14 +341,15 @@ function QuoteBuilder({ open, onClose, onSave, initial, existingQuotes }: QuoteB
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
+  const { services } = useServices();
 
   const totals = useMemo(() => calcTotals(items, discount), [items, discount]);
 
-  const addFromCatalog = (svc: typeof SERVICES_CATALOG[0]) => {
+  const addFromCatalog = (svc: Service) => {
     setItems(prev => [...prev, calcLineItem({
       id: generateId(), name: svc.name, description: '',
-      quantity: 1, unit: svc.unit as QuoteLineItem['unit'],
-      unit_price_net: svc.price, vat_rate: svc.vat,
+      quantity: 1, unit: svc.unit,
+      unit_price_net: svc.unit_price_net, vat_rate: svc.vat_rate,
     })]);
   };
 
@@ -365,8 +368,8 @@ function QuoteBuilder({ open, onClose, onSave, initial, existingQuotes }: QuoteB
     onClose();
   };
 
-  const filteredCatalog = SERVICES_CATALOG.filter(s =>
-    s.name.toLowerCase().includes(catalogSearch.toLowerCase())
+  const filteredCatalog = services.filter(s =>
+    s.is_active && s.name.toLowerCase().includes(catalogSearch.toLowerCase())
   );
 
   return (
@@ -415,7 +418,7 @@ function QuoteBuilder({ open, onClose, onSave, initial, existingQuotes }: QuoteB
               <div className="grid grid-cols-3 gap-2">
                 {filteredCatalog.map(svc => (
                   <button
-                    key={svc.name}
+                    key={svc.id}
                     onClick={() => addFromCatalog(svc)}
                     className="flex items-start gap-2 p-2.5 rounded-lg border border-border hover:border-accent/50 hover:bg-accent-subtle text-left transition-all group"
                   >
@@ -423,7 +426,7 @@ function QuoteBuilder({ open, onClose, onSave, initial, existingQuotes }: QuoteB
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-text-primary leading-tight">{svc.name}</p>
                       <p className="text-[10px] text-text-muted mt-0.5">
-                        {new Intl.NumberFormat('pl-PL').format(svc.price)} zł / {svc.unit}
+                        {new Intl.NumberFormat('pl-PL').format(svc.unit_price_net)} zł / {svc.unit}
                       </p>
                     </div>
                   </button>
@@ -444,13 +447,14 @@ function QuoteBuilder({ open, onClose, onSave, initial, existingQuotes }: QuoteB
 
           {/* Column headers */}
           <div className="grid text-[11px] font-medium text-text-muted px-0 mb-1"
-            style={{ gridTemplateColumns: '1fr 70px 90px 80px 70px 90px 24px' }}>
+            style={{ gridTemplateColumns: '1fr 55px 78px 68px 56px 68px 78px 22px' }}>
             <span>Nazwa usługi / opis</span>
             <span className="text-right">Ilość</span>
             <span className="pl-2">Jednostka</span>
-            <span className="text-right">Cena netto</span>
+            <span className="text-right">Netto</span>
             <span className="pl-2">VAT</span>
             <span className="text-right">Brutto</span>
+            <span className="text-right">Wartość</span>
             <span />
           </div>
 
@@ -777,13 +781,26 @@ function ServicesCatalog() {
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder="Krótki opis zakresu usługi"
           />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label="Cena netto (PLN)"
               type="number"
               value={form.unit_price_net ?? ''}
               onChange={e => setForm(f => ({ ...f, unit_price_net: parseFloat(e.target.value) || 0 }))}
             />
+            <Input
+              label="Cena brutto (PLN)"
+              type="number"
+              value={form.unit_price_net != null && form.vat_rate != null
+                ? Math.round(form.unit_price_net * (1 + form.vat_rate / 100) * 100) / 100
+                : ''}
+              onChange={e => {
+                const gross = parseFloat(e.target.value) || 0;
+                setForm(f => ({ ...f, unit_price_net: Math.round((gross / (1 + (f.vat_rate ?? 23) / 100)) * 100) / 100 }));
+              }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Select
               label="Jednostka"
               value={form.unit ?? 'projekt'}

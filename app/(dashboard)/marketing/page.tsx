@@ -34,6 +34,7 @@ const RECIPIENT_STATUS_CONFIG: Record<RecipientStatus, { label: string; dot: str
 const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   new: 'Nowy', contacted: 'Kontaktowany', offer_sent: 'Oferta wysłana',
   negotiation: 'Negocjacje', won: 'Wygrany', lost: 'Przegrany',
+  wrong_form: 'Źle wypełniony formularz', mistake: 'Pomyłka',
 };
 
 const SOURCE_LABELS: Record<LeadSource, string> = {
